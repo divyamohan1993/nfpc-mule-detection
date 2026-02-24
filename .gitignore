@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Data files (too large for git, provided by RBIH)
+data/*.csv
+data/*.parquet
+*.csv.gz
+
+# Playwright
+.playwright-mcp/
+
+# Claude Code
+.claude/
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Large generated files (regenerate with src/md_to_html.py + Playwright)
+reports/NFPC_Phase1_EDA_Report.html
+reports/pdf/
