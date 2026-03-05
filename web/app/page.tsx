@@ -704,7 +704,7 @@ export default function Home() {
           <div>
             <div className="text-sm font-semibold">NFPC Mule Account Detection</div>
             <div className="mt-1 text-xs text-[#666]">
-              Team dmj.one &middot; RBIH x IIT Delhi TRYST 2025
+              Divya Mohan &amp; Kumkum Thakur &middot; Team dmj.one &middot; RBIH x IIT Delhi TRYST 2025
             </div>
           </div>
           <div className="flex items-center gap-6 text-xs text-[#666]">

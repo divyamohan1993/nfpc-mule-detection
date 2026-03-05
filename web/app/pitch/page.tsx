@@ -32,7 +32,7 @@ const SLIDES = [
           ML-powered detection of fraudulent intermediary accounts in Indian banking
         </p>
         <div className="mt-8 text-[0.9rem] text-[rgba(255,255,255,0.4)]">
-          Divya Mohan &middot; Team dmj.one &middot;{" "}
+          Divya Mohan &amp; Kumkum Thakur &middot; Team dmj.one &middot;{" "}
           <a href="https://github.com/divyamohan1993/nfpc-mule-detection" target="_blank" rel="noopener noreferrer" className="underline decoration-[rgba(255,255,255,0.3)] underline-offset-2 transition-colors hover:text-[#00d4aa]">
             github.com/divyamohan1993/nfpc-mule-detection
           </a>
@@ -243,6 +243,17 @@ const SLIDES = [
               <a href="https://github.com/divyamohan1993" target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-[#00d4aa] hover:underline">
                 github.com/divyamohan1993
               </a>
+            </div>
+          </div>
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#00d4aa15] text-lg font-bold text-[#00d4aa]">
+              KT
+            </div>
+            <div>
+              <div className="font-bold">Kumkum Thakur</div>
+              <div className="text-sm text-[rgba(255,255,255,0.5)]">
+                Data Science Guidance, Domain Expertise, Analysis
+              </div>
             </div>
           </div>
           <div className="flex items-start gap-4">
