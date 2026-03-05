@@ -1,4 +1,3 @@
-import Link from "next/link";
 import Image from "next/image";
 
 const FEATURE_DATA = [
@@ -148,61 +147,13 @@ const KEY_SIGNALS = [
   { signal: "Pass-Through Ratio", legit: "1.184", mule: "1.015", mult: "~1:1" },
 ];
 
-const VIZ_SECTIONS = [
-  {
-    title: "Data & Distribution",
-    plots: [
-      { file: "01_class_distribution.png", label: "Class Distribution" },
-      { file: "02_alert_reasons.png", label: "Alert Reasons" },
-      { file: "03_account_status_freeze.png", label: "Account Status & Freeze" },
-      { file: "04_balance_boxplots.png", label: "Balance Distributions" },
-    ],
-  },
-  {
-    title: "Account & Customer",
-    plots: [
-      { file: "05_account_opening.png", label: "Account Opening" },
-      { file: "06_customer_demographics.png", label: "Demographics" },
-      { file: "07_flags_heatmap.png", label: "Flags Heatmap" },
-      { file: "08_channel_analysis.png", label: "Channel Analysis" },
-    ],
-  },
-  {
-    title: "Transaction Patterns",
-    plots: [
-      { file: "09_temporal_patterns.png", label: "Temporal Patterns" },
-      { file: "10_amount_distribution.png", label: "Amount Distribution" },
-      { file: "11_structuring.png", label: "Structuring Detection" },
-      { file: "12_counterparty.png", label: "Counterparty Analysis" },
-    ],
-  },
-  {
-    title: "Advanced Analysis",
-    plots: [
-      { file: "13_mcc_analysis.png", label: "MCC Analysis" },
-      { file: "14_branch_analysis.png", label: "Branch Analysis" },
-      { file: "15_velocity.png", label: "Velocity" },
-      { file: "16_correlations.png", label: "Correlations" },
-    ],
-  },
-  {
-    title: "Model & Evaluation",
-    plots: [
-      { file: "17_feature_importance.png", label: "Feature Importance" },
-      { file: "18_model_evaluation.png", label: "ROC & PR Curves" },
-      { file: "19_shap_summary.png", label: "SHAP Summary" },
-      { file: "20_geographic_analysis.png", label: "Geographic" },
-    ],
-  },
-  {
-    title: "Deep Dive",
-    plots: [
-      { file: "21_unsupervised_features.png", label: "Unsupervised Features" },
-      { file: "22_focused_heatmap.png", label: "Focused Heatmap" },
-      { file: "23_network_topology.png", label: "Network Topology" },
-      { file: "24_false_positive_analysis.png", label: "False Positive Analysis" },
-    ],
-  },
+const HIGHLIGHT_PLOTS = [
+  { file: "18_model_evaluation.png", label: "ROC & PR Curves" },
+  { file: "19_shap_summary.png", label: "SHAP Summary" },
+  { file: "11_structuring.png", label: "Structuring Detection" },
+  { file: "23_network_topology.png", label: "Network Topology" },
+  { file: "15_velocity.png", label: "Transaction Velocity" },
+  { file: "25_cost_sensitive_matrix.png", label: "Cost-Sensitive Matrix" },
 ];
 
 function StatCard({
@@ -292,12 +243,12 @@ export default function Home() {
             >
               Viz
             </a>
-            <Link
+            <a
               href="/pitch"
               className="rounded-full border border-accent/30 px-3 py-1 text-accent transition-colors hover:bg-accent/10"
             >
               Pitch
-            </Link>
+            </a>
           </div>
         </div>
       </nav>
@@ -574,64 +525,66 @@ export default function Home() {
             25 Visualizations
           </h2>
           <p className="mt-4 max-w-xl text-[#a0a0a0]">
-            Comprehensive EDA covering class distribution, transaction patterns,
-            network topology, model evaluation, and more.
+            47 statistical tables, 25 analytical plots, and a full written report
+            covering every aspect of mule account behavior.
           </p>
 
-          {VIZ_SECTIONS.map((section) => (
-            <div key={section.title} className="mt-16">
-              <h3 className="mb-6 text-lg font-bold text-[#a0a0a0]">
-                {section.title}
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {section.plots.map((plot) => (
-                  <div
-                    key={plot.file}
-                    className="group overflow-hidden rounded-xl border border-border bg-surface-raised transition-all hover:border-accent/20"
-                  >
-                    <div className="relative aspect-[4/3] overflow-hidden">
-                      <Image
-                        src={`/plots/${plot.file}`}
-                        alt={plot.label}
-                        fill
-                        className="object-contain p-2 transition-transform group-hover:scale-[1.02]"
-                        sizes="(max-width: 768px) 100vw, 50vw"
-                        loading="lazy"
-                      />
-                    </div>
-                    <div className="border-t border-border/50 px-4 py-3">
-                      <span className="text-sm font-medium text-[#a0a0a0]">
-                        {plot.label}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          <div className="mt-16">
-            <h3 className="mb-6 text-lg font-bold text-[#a0a0a0]">
-              Cost-Sensitive Deployment
-            </h3>
-            <div className="max-w-2xl overflow-hidden rounded-xl border border-border bg-surface-raised">
-              <div className="relative aspect-[4/3] overflow-hidden">
-                <Image
-                  src="/plots/25_cost_sensitive_matrix.png"
-                  alt="Cost-Sensitive Confusion Matrix"
-                  fill
-                  className="object-contain p-2"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  loading="lazy"
-                />
-              </div>
-              <div className="border-t border-border/50 px-4 py-3">
-                <span className="text-sm font-medium text-[#a0a0a0]">
-                  Cost-Sensitive Confusion Matrix
-                </span>
-              </div>
-            </div>
+          {/* CTA to full report */}
+          <div className="mt-8 flex flex-wrap gap-4">
+            <a
+              href="/report"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-8 text-sm font-semibold text-surface transition-all hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(0,212,170,0.3)] active:scale-[0.98]"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
+              </svg>
+              Read Full EDA Report
+            </a>
+            <a
+              href="https://github.com/divyamohan1993/nfpc-mule-detection/tree/main/reports"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-12 items-center gap-2 rounded-full border border-border px-8 text-sm font-medium text-[#a0a0a0] transition-all hover:border-[#444] hover:text-[#f0f0f0]"
+            >
+              View on GitHub
+            </a>
           </div>
+
+          {/* Curated highlights — 6 key plots, symmetrical 3x2 grid */}
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {HIGHLIGHT_PLOTS.map((plot) => (
+              <div
+                key={plot.file}
+                className="group overflow-hidden rounded-xl border border-border bg-surface-raised transition-all hover:border-accent/20"
+              >
+                <div className="relative aspect-[4/3] overflow-hidden bg-white">
+                  <Image
+                    src={`/plots/${plot.file}`}
+                    alt={plot.label}
+                    fill
+                    className="object-contain p-2 transition-transform group-hover:scale-[1.02]"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="border-t border-border/50 px-4 py-3">
+                  <span className="text-sm font-medium text-[#a0a0a0]">
+                    {plot.label}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-8 text-sm text-[#666]">
+            Showing 6 of 25 visualizations.{" "}
+            <a href="/report" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+              Full report
+            </a>{" "}
+            includes class distribution, channel analysis, temporal patterns, geographic analysis, and more.
+          </p>
         </div>
       </section>
 
@@ -716,9 +669,9 @@ export default function Home() {
             >
               GitHub
             </a>
-            <Link href="/pitch" className="transition-colors hover:text-accent">
+            <a href="/pitch" className="transition-colors hover:text-accent">
               Pitch Deck
-            </Link>
+            </a>
             <a
               href="https://dmj.one"
               target="_blank"
