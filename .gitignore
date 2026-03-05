@@ -44,6 +44,9 @@ data/*.parquet
 reports/NFPC_Phase1_EDA_Report.html
 reports/pdf/
 
+# LinkedIn post (personal, not project artifact)
+linkedin-post.txt
+
 # Next.js
 web/.next/
 web/out/
