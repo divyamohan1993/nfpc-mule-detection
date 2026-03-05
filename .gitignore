@@ -43,3 +43,8 @@ data/*.parquet
 # Large generated files (regenerate with src/md_to_html.py + Playwright)
 reports/NFPC_Phase1_EDA_Report.html
 reports/pdf/
+
+# Next.js
+web/.next/
+web/out/
+web/node_modules/

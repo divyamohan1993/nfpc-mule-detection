@@ -1,0 +1,11 @@
+0.985 AUC-ROC detecting money mule accounts. On a dataset where only 1 in 90 accounts is fraudulent.
+
+Built for the National Fraud Prevention Challenge by RBIH x IIT Delhi. 125 engineered features catch all 12 known mule behavior patterns — from dormant activation to salary cycle exploitation.
+
+The top signal? MCC 6051 (wire transfers) usage rate. Mule accounts use it at 18x the rate of legitimate ones.
+
+nfpc.dmj.one
+
+python · lightgbm · xgboost · shap · next.js
+
+#MachineLearning #FinTech #DigitalIndia
