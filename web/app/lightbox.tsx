@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 
 interface LightboxImage {
@@ -15,6 +15,7 @@ export function LightboxGallery({
 }) {
   const [open, setOpen] = useState(false);
   const [idx, setIdx] = useState(0);
+  const touchRef = useRef(0);
 
   const close = useCallback(() => setOpen(false), []);
   const prev = useCallback(() => setIdx((i) => (i > 0 ? i - 1 : images.length - 1)), [images.length]);
@@ -27,10 +28,19 @@ export function LightboxGallery({
       if (e.key === "ArrowLeft") prev();
       if (e.key === "ArrowRight") next();
     };
+    const handleTouchStart = (e: TouchEvent) => { touchRef.current = e.touches[0].clientX; };
+    const handleTouchEnd = (e: TouchEvent) => {
+      const dx = e.changedTouches[0].clientX - touchRef.current;
+      if (Math.abs(dx) > 50) dx < 0 ? next() : prev();
+    };
     document.addEventListener("keydown", handle);
+    document.addEventListener("touchstart", handleTouchStart, { passive: true });
+    document.addEventListener("touchend", handleTouchEnd);
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", handle);
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", handleTouchEnd);
       document.body.style.overflow = "";
     };
   }, [open, close, prev, next]);
@@ -55,8 +65,8 @@ export function LightboxGallery({
                 loading="lazy"
               />
             </div>
-            <div className="border-t border-[var(--color-border)]/50 px-4 py-3">
-              <span className="text-sm font-medium text-[#a0a0a0]">{img.alt}</span>
+            <div className="border-t border-[var(--color-border)]/50 px-3 py-2.5 sm:px-4 sm:py-3">
+              <span className="text-xs font-medium text-[#a0a0a0] sm:text-sm">{img.alt}</span>
             </div>
           </button>
         ))}
@@ -73,10 +83,10 @@ export function LightboxGallery({
           {/* Close */}
           <button
             onClick={close}
-            className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+            className="absolute right-3 top-3 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 sm:right-4 sm:top-4"
             aria-label="Close"
           >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
@@ -84,10 +94,10 @@ export function LightboxGallery({
           {/* Prev */}
           <button
             onClick={prev}
-            className="absolute left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+            className="absolute left-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 sm:left-4"
             aria-label="Previous image"
           >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
@@ -95,16 +105,16 @@ export function LightboxGallery({
           {/* Next */}
           <button
             onClick={next}
-            className="absolute right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+            className="absolute right-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 sm:right-4"
             aria-label="Next image"
           >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 18l6-6-6-6" />
             </svg>
           </button>
 
           {/* Image */}
-          <div className="relative mx-16 my-16 max-h-[85vh] max-w-[90vw]">
+          <div className="relative mx-2 my-14 max-h-[85vh] max-w-[96vw] sm:mx-8 sm:my-16 sm:max-w-[90vw] lg:mx-16">
             <Image
               src={images[idx].src}
               alt={images[idx].alt}
@@ -116,8 +126,8 @@ export function LightboxGallery({
           </div>
 
           {/* Counter + label */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
-            <div className="text-sm font-medium text-white">{images[idx].alt}</div>
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-center sm:bottom-4">
+            <div className="text-xs font-medium text-white sm:text-sm">{images[idx].alt}</div>
             <div className="mt-1 text-xs text-white/40 tabular-nums">
               {idx + 1} / {images.length}
             </div>

@@ -78,7 +78,7 @@ const SLIDES = [
         <h2 className="text-[clamp(2.5rem,5vw,4.5rem)] font-[800] leading-[1.05] tracking-[-0.02em]">
           The <span className="text-[#00d4aa]">Pipeline</span>
         </h2>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
           {[
             { num: "7.4M", label: "Transactions Ingested" },
             { num: "125", label: "Features Engineered" },
@@ -86,9 +86,9 @@ const SLIDES = [
             { num: "0.985", label: "AUC-ROC Achieved" },
           ].map((s, i) => (
             <div key={s.num} className="flex items-center gap-3">
-              <div className="flex flex-col items-center justify-center rounded-xl border border-[#00d4aa30] bg-[#00d4aa08] px-5 py-4 min-w-[120px]">
-                <span className="text-2xl font-[900] leading-none text-[#00d4aa]">{s.num}</span>
-                <span className="mt-1 text-[11px] text-[rgba(255,255,255,0.5)]">{s.label}</span>
+              <div className="flex w-full flex-col items-center justify-center rounded-xl border border-[#00d4aa30] bg-[#00d4aa08] px-3 py-3 sm:w-auto sm:min-w-[120px] sm:px-5 sm:py-4">
+                <span className="text-xl font-[900] leading-none text-[#00d4aa] sm:text-2xl">{s.num}</span>
+                <span className="mt-1 text-[10px] text-[rgba(255,255,255,0.5)] sm:text-[11px]">{s.label}</span>
               </div>
               {i < 3 && (
                 <svg viewBox="0 0 24 24" className="hidden h-4 w-4 shrink-0 text-[#333] sm:block" fill="none" stroke="currentColor" strokeWidth="2">
@@ -113,7 +113,7 @@ const SLIDES = [
         <h2 className="text-[clamp(2.5rem,5vw,4.5rem)] font-[800] leading-[1.05] tracking-[-0.02em]">
           Who <span className="text-[#00d4aa]">Benefits</span>
         </h2>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2" style={{ maxWidth: "600px" }}>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 sm:max-w-[600px]">
           {[
             { who: "Banks & NBFCs", how: "Pre-flag suspicious accounts before losses" },
             { who: "Regulators (RBI/FIU-IND)", how: "Strengthen STR framework, PMLA compliance" },
@@ -140,7 +140,7 @@ const SLIDES = [
         <h2 className="text-[clamp(2.5rem,5vw,4.5rem)] font-[800] leading-[1.05] tracking-[-0.02em]">
           Reaching <span className="text-[#00d4aa]">Users</span>
         </h2>
-        <div className="mt-8 space-y-4" style={{ maxWidth: "500px" }}>
+        <div className="mt-8 space-y-4 sm:max-w-[500px]">
           {[
             "RBIH network — direct access to Indian banking ecosystem",
             "Open-source model + paper — academic validation, community trust",
@@ -167,7 +167,7 @@ const SLIDES = [
           <span className="text-[#00d4aa]">Landscape</span>
         </h2>
         <div className="mt-8 overflow-x-auto">
-          <table className="w-full text-sm" style={{ maxWidth: "600px" }}>
+          <table className="w-full max-w-[600px] text-xs sm:text-sm">
             <thead>
               <tr className="border-b border-[#222]">
                 <th className="py-2 pr-4 text-left text-xs text-[rgba(255,255,255,0.5)]">Approach</th>
@@ -212,7 +212,7 @@ const SLIDES = [
         <h2 className="text-[clamp(2.5rem,5vw,4.5rem)] font-[800] leading-[1.05] tracking-[-0.02em]">
           Built By
         </h2>
-        <div className="mt-8 space-y-6" style={{ maxWidth: "500px" }}>
+        <div className="mt-8 space-y-6 sm:max-w-[500px]">
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#00d4aa15] text-lg font-bold text-[#00d4aa]">DM</div>
             <div>
@@ -251,7 +251,7 @@ const SLIDES = [
         <h2 className="text-[clamp(2.5rem,5vw,4.5rem)] font-[800] leading-[1.05] tracking-[-0.02em]">
           Real <span className="text-[#00d4aa]">Numbers</span>
         </h2>
-        <div className="mt-8 grid gap-4 sm:grid-cols-3" style={{ maxWidth: "600px" }}>
+        <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 sm:max-w-[600px]">
           {[
             { val: "0.985", label: "AUC-ROC" },
             { val: "125", label: "Features" },
@@ -280,7 +280,7 @@ const SLIDES = [
         <h2 className="text-[clamp(2.5rem,5vw,4.5rem)] font-[800] leading-[1.05] tracking-[-0.02em]">
           What&apos;s <span className="text-[#00d4aa]">Next</span>
         </h2>
-        <div className="mt-8 space-y-4" style={{ maxWidth: "500px" }}>
+        <div className="mt-8 space-y-4 sm:max-w-[500px]">
           {[
             { done: true, text: "EDA + 125-feature pipeline + ensemble model" },
             { done: true, text: "25 visualizations + full statistical report" },
@@ -409,6 +409,7 @@ export default function PitchDeck() {
           *, *::before, *::after { animation: none !important; transition: none !important; }
         }
         @media (max-width: 768px) { .pitch-slide { padding: 6vh 6vw; } }
+        @media (max-width: 480px) { .pitch-slide { padding: 4vh 5vw; } }
       `}</style>
 
       <a href="/" className="fixed left-6 top-5 z-[100] text-xs text-[rgba(255,255,255,0.35)] no-underline transition-colors hover:text-[#00d4aa]">

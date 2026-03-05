@@ -197,7 +197,7 @@ function FeatureBar({
           <span className="text-sm font-medium group-hover:text-accent transition-colors">
             {label}
           </span>
-          <code className="text-xs font-mono text-[#666]">{name}</code>
+          <code className="hidden text-xs font-mono text-[#666] sm:inline">{name}</code>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-surface-overlay">
           <div
@@ -215,7 +215,7 @@ export default function Home() {
     <div className="min-h-screen">
       {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-border/50 bg-surface/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10">
               <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-accent" stroke="currentColor" strokeWidth="2">
@@ -227,19 +227,19 @@ export default function Home() {
               Mule Detection
             </span>
           </div>
-          <div className="flex items-center gap-6 text-xs text-[#a0a0a0]">
-            <a href="#results" className="transition-colors hover:text-accent">
+          <div className="flex items-center gap-3 text-xs text-[#a0a0a0] sm:gap-6">
+            <a href="#results" className="hidden transition-colors hover:text-accent sm:inline">
               Results
             </a>
-            <a href="#features" className="transition-colors hover:text-accent">
+            <a href="#features" className="hidden transition-colors hover:text-accent sm:inline">
               Features
             </a>
-            <a href="#patterns" className="transition-colors hover:text-accent">
+            <a href="#patterns" className="hidden transition-colors hover:text-accent md:inline">
               Patterns
             </a>
             <a
               href="#visualizations"
-              className="transition-colors hover:text-accent"
+              className="hidden transition-colors hover:text-accent md:inline"
             >
               Viz
             </a>
@@ -254,7 +254,7 @@ export default function Home() {
       </nav>
 
       {/* Hero */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 pt-14">
+      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pt-14 sm:px-6">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.03]"
           style={{
@@ -271,7 +271,7 @@ export default function Home() {
             RBIH x IIT Delhi TRYST 2025
           </div>
 
-          <h1 className="text-5xl font-black tracking-tight sm:text-7xl lg:text-8xl">
+          <h1 className="text-4xl font-black tracking-tight sm:text-5xl md:text-7xl lg:text-8xl">
             Catching{" "}
             <span className="bg-gradient-to-r from-accent to-emerald-400 bg-clip-text text-transparent">
               Money Mules
@@ -323,12 +323,12 @@ export default function Home() {
       </section>
 
       {/* Results */}
-      <section id="results" className="relative px-6 py-32">
+      <section id="results" className="relative px-4 py-16 sm:px-6 sm:py-32">
         <div className="mx-auto max-w-7xl">
           <div className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-accent">
             Performance
           </div>
-          <h2 className="text-4xl font-black tracking-tight sm:text-5xl">
+          <h2 className="text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
             Key Results
           </h2>
           <p className="mt-4 max-w-xl text-[#a0a0a0]">
@@ -346,33 +346,33 @@ export default function Home() {
           <div className="mt-16">
             <h3 className="mb-6 text-xl font-bold">Model Comparison</h3>
             <div className="overflow-x-auto rounded-xl border border-border">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs sm:text-sm">
                 <thead>
                   <tr className="border-b border-border bg-surface-raised">
-                    <th className="px-6 py-4 text-left font-medium text-[#a0a0a0]">Model</th>
-                    <th className="px-6 py-4 text-right font-medium text-[#a0a0a0]">OOF AUC-ROC</th>
-                    <th className="px-6 py-4 text-right font-medium text-[#a0a0a0]">Mean Fold AUC</th>
-                    <th className="px-6 py-4 text-right font-medium text-[#a0a0a0]">Std Dev</th>
+                    <th className="px-3 py-3 text-left font-medium text-[#a0a0a0] sm:px-6 sm:py-4">Model</th>
+                    <th className="px-3 py-3 text-right font-medium text-[#a0a0a0] sm:px-6 sm:py-4">OOF AUC-ROC</th>
+                    <th className="px-3 py-3 text-right font-medium text-[#a0a0a0] sm:px-6 sm:py-4">Mean Fold AUC</th>
+                    <th className="px-3 py-3 text-right font-medium text-[#a0a0a0] sm:px-6 sm:py-4">Std Dev</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b border-border/50 transition-colors hover:bg-surface-overlay/50">
-                    <td className="px-6 py-4 font-medium">LightGBM</td>
-                    <td className="px-6 py-4 text-right font-mono">0.9834</td>
-                    <td className="px-6 py-4 text-right font-mono">0.9831</td>
-                    <td className="px-6 py-4 text-right font-mono text-[#666]">&plusmn;0.0058</td>
+                    <td className="px-3 py-3 font-medium sm:px-6 sm:py-4">LightGBM</td>
+                    <td className="px-3 py-3 text-right font-mono sm:px-6 sm:py-4">0.9834</td>
+                    <td className="px-3 py-3 text-right font-mono sm:px-6 sm:py-4">0.9831</td>
+                    <td className="px-3 py-3 text-right font-mono text-[#666] sm:px-6 sm:py-4">&plusmn;0.0058</td>
                   </tr>
                   <tr className="border-b border-border/50 transition-colors hover:bg-surface-overlay/50">
-                    <td className="px-6 py-4 font-medium">XGBoost</td>
-                    <td className="px-6 py-4 text-right font-mono">0.9789</td>
-                    <td className="px-6 py-4 text-right font-mono">0.9785</td>
-                    <td className="px-6 py-4 text-right font-mono text-[#666]">&plusmn;0.0067</td>
+                    <td className="px-3 py-3 font-medium sm:px-6 sm:py-4">XGBoost</td>
+                    <td className="px-3 py-3 text-right font-mono sm:px-6 sm:py-4">0.9789</td>
+                    <td className="px-3 py-3 text-right font-mono sm:px-6 sm:py-4">0.9785</td>
+                    <td className="px-3 py-3 text-right font-mono text-[#666] sm:px-6 sm:py-4">&plusmn;0.0067</td>
                   </tr>
                   <tr className="transition-colors hover:bg-surface-overlay/50">
-                    <td className="px-6 py-4 font-bold text-accent">Ensemble</td>
-                    <td className="px-6 py-4 text-right font-mono font-bold text-accent">0.9851</td>
-                    <td className="px-6 py-4 text-right font-mono text-[#666]">-</td>
-                    <td className="px-6 py-4 text-right font-mono text-[#666]">-</td>
+                    <td className="px-3 py-3 font-bold text-accent sm:px-6 sm:py-4">Ensemble</td>
+                    <td className="px-3 py-3 text-right font-mono font-bold text-accent sm:px-6 sm:py-4">0.9851</td>
+                    <td className="px-3 py-3 text-right font-mono text-[#666] sm:px-6 sm:py-4">-</td>
+                    <td className="px-3 py-3 text-right font-mono text-[#666] sm:px-6 sm:py-4">-</td>
                   </tr>
                 </tbody>
               </table>
@@ -382,12 +382,12 @@ export default function Home() {
       </section>
 
       {/* Key Signals */}
-      <section className="border-t border-border/50 px-6 py-24">
+      <section className="border-t border-border/50 px-4 py-16 sm:px-6 sm:py-24">
         <div className="mx-auto max-w-7xl">
           <div className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-accent">
             Discrimination
           </div>
-          <h2 className="text-4xl font-black tracking-tight sm:text-5xl">
+          <h2 className="text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
             Red Flags
           </h2>
           <p className="mt-4 max-w-xl text-[#a0a0a0]">
@@ -396,13 +396,13 @@ export default function Home() {
           </p>
 
           <div className="mt-12 overflow-x-auto rounded-xl border border-border">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-raised">
-                  <th className="px-6 py-4 text-left font-medium text-[#a0a0a0]">Signal</th>
-                  <th className="px-6 py-4 text-right font-medium text-[#a0a0a0]">Legitimate</th>
-                  <th className="px-6 py-4 text-right font-medium text-[#a0a0a0]">Mule</th>
-                  <th className="px-6 py-4 text-right font-medium text-[#a0a0a0]">Risk Multiplier</th>
+                  <th className="px-3 py-3 text-left font-medium text-[#a0a0a0] sm:px-6 sm:py-4">Signal</th>
+                  <th className="px-3 py-3 text-right font-medium text-[#a0a0a0] sm:px-6 sm:py-4">Legitimate</th>
+                  <th className="px-3 py-3 text-right font-medium text-[#a0a0a0] sm:px-6 sm:py-4">Mule</th>
+                  <th className="px-3 py-3 text-right font-medium text-[#a0a0a0] sm:px-6 sm:py-4">Multiplier</th>
                 </tr>
               </thead>
               <tbody>
@@ -411,11 +411,11 @@ export default function Home() {
                     key={s.signal}
                     className="border-b border-border/50 transition-colors hover:bg-surface-overlay/50"
                   >
-                    <td className="px-6 py-4 font-medium">{s.signal}</td>
-                    <td className="px-6 py-4 text-right font-mono text-[#a0a0a0]">{s.legit}</td>
-                    <td className="px-6 py-4 text-right font-mono text-[#ff4444]">{s.mule}</td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="inline-flex items-center rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent">
+                    <td className="px-3 py-3 font-medium sm:px-6 sm:py-4">{s.signal}</td>
+                    <td className="px-3 py-3 text-right font-mono text-[#a0a0a0] sm:px-6 sm:py-4">{s.legit}</td>
+                    <td className="px-3 py-3 text-right font-mono text-[#ff4444] sm:px-6 sm:py-4">{s.mule}</td>
+                    <td className="px-3 py-3 text-right sm:px-6 sm:py-4">
+                      <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent sm:px-2.5 sm:text-xs">
                         {s.mult}
                       </span>
                     </td>
@@ -428,12 +428,12 @@ export default function Home() {
       </section>
 
       {/* Feature Importance */}
-      <section id="features" className="border-t border-border/50 px-6 py-24">
+      <section id="features" className="border-t border-border/50 px-4 py-16 sm:px-6 sm:py-24">
         <div className="mx-auto max-w-7xl">
           <div className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-accent">
             Feature Engineering
           </div>
-          <h2 className="text-4xl font-black tracking-tight sm:text-5xl">
+          <h2 className="text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
             Top 10 Features
           </h2>
           <p className="mt-4 max-w-xl text-[#a0a0a0]">
@@ -454,7 +454,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-12 grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {[
               { cat: "Transaction Aggregation", n: 7 },
               { cat: "Structuring Detection", n: 7 },
@@ -480,12 +480,12 @@ export default function Home() {
       </section>
 
       {/* Patterns */}
-      <section id="patterns" className="border-t border-border/50 px-6 py-24">
+      <section id="patterns" className="border-t border-border/50 px-4 py-16 sm:px-6 sm:py-24">
         <div className="mx-auto max-w-7xl">
           <div className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-accent">
             Behavioral Analysis
           </div>
-          <h2 className="text-4xl font-black tracking-tight sm:text-5xl">
+          <h2 className="text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
             12 Mule Patterns
           </h2>
           <p className="mt-4 max-w-xl text-[#a0a0a0]">
@@ -516,12 +516,12 @@ export default function Home() {
       </section>
 
       {/* Visualizations */}
-      <section id="visualizations" className="border-t border-border/50 px-6 py-24">
+      <section id="visualizations" className="border-t border-border/50 px-4 py-16 sm:px-6 sm:py-24">
         <div className="mx-auto max-w-7xl">
           <div className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-accent">
             Exploratory Data Analysis
           </div>
-          <h2 className="text-4xl font-black tracking-tight sm:text-5xl">
+          <h2 className="text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
             25 Visualizations
           </h2>
           <p className="mt-4 max-w-xl text-[#a0a0a0]">
@@ -573,12 +573,12 @@ export default function Home() {
       </section>
 
       {/* Technical Approach */}
-      <section className="border-t border-border/50 px-6 py-24">
+      <section className="border-t border-border/50 px-4 py-16 sm:px-6 sm:py-24">
         <div className="mx-auto max-w-7xl">
           <div className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-accent">
             Methodology
           </div>
-          <h2 className="text-4xl font-black tracking-tight sm:text-5xl">
+          <h2 className="text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
             How It Works
           </h2>
 
@@ -636,7 +636,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 px-6 py-16">
+      <footer className="border-t border-border/50 px-4 py-10 sm:px-6 sm:py-16">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 sm:flex-row">
           <div>
             <div className="text-sm font-semibold">NFPC Mule Account Detection</div>

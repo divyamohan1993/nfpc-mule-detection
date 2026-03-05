@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>NFPC Phase 1 EDA Report - dmj.one</title>
 <style>
 /* ========== PAGE SETUP ========== */
@@ -401,11 +402,18 @@ thead {
 /* Web viewing: side padding on screen, does not affect print */
 @media screen {
     body {
-        max-width: 900px;
+        max-width: min(900px, 100%);
         margin: 0 auto;
-        padding: 2rem 3rem;
+        padding: 1rem;
         background: #fafafa;
+        box-sizing: border-box;
+        overflow-x: hidden;
     }
+    img { max-width: 100%; height: auto; }
+    table { max-width: 100%; overflow-x: auto; display: block; }
+}
+@media screen and (min-width: 640px) {
+    body { padding: 2rem 3rem; }
 }
 </style>
 </head>

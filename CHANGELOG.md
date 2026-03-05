@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-03-05
+
+### Changed
+- Full responsive overhaul: mobile (320px) to 8K projector support
+- Lightbox: mobile-safe margins, 48px touch targets, swipe gesture support
+- Nav links collapse on mobile, show progressively at sm/md breakpoints
+- Table cells use tighter padding on mobile, scale up on sm+
+- Section padding reduced on mobile (px-4 py-16) for better space usage
+- Pitch deck: inline maxWidth replaced with responsive Tailwind classes
+- Pipeline boxes use 2-col grid on mobile, flex row on sm+
+- Feature category grid starts at 2-col on mobile
+- Feature bar code labels hidden on mobile for cleaner layout
+- Report HTML: responsive padding, viewport meta, images/tables constrained
+- Headings scale: text-3xl → sm:text-4xl → md:text-5xl
+
 ## [1.1.0] - 2026-03-05
 
 ### Added
