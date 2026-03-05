@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { LightboxGallery } from "./lightbox";
 
 const FEATURE_DATA = [
   { name: "mcc_6051_rate", importance: 275234, label: "Wire Transfer Rate", pct: 100 },
@@ -552,30 +552,14 @@ export default function Home() {
             </a>
           </div>
 
-          {/* Curated highlights — 6 key plots, symmetrical 3x2 grid */}
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {HIGHLIGHT_PLOTS.map((plot) => (
-              <div
-                key={plot.file}
-                className="group overflow-hidden rounded-xl border border-border bg-surface-raised transition-all hover:border-accent/20"
-              >
-                <div className="relative aspect-[4/3] overflow-hidden bg-white">
-                  <Image
-                    src={`/plots/${plot.file}`}
-                    alt={plot.label}
-                    fill
-                    className="object-contain p-2 transition-transform group-hover:scale-[1.02]"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="border-t border-border/50 px-4 py-3">
-                  <span className="text-sm font-medium text-[#a0a0a0]">
-                    {plot.label}
-                  </span>
-                </div>
-              </div>
-            ))}
+          {/* Curated highlights — 6 key plots with lightbox */}
+          <div className="mt-12">
+            <LightboxGallery
+              images={HIGHLIGHT_PLOTS.map((p) => ({
+                src: `/plots/${p.file}`,
+                alt: p.label,
+              }))}
+            />
           </div>
 
           <p className="mt-8 text-sm text-[#666]">

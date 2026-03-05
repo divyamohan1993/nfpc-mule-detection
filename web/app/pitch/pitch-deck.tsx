@@ -78,20 +78,20 @@ const SLIDES = [
         <h2 className="text-[clamp(2.5rem,5vw,4.5rem)] font-[800] leading-[1.05] tracking-[-0.02em]">
           The <span className="text-[#00d4aa]">Pipeline</span>
         </h2>
-        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
           {[
-            { label: "7.4M Txns", sub: "Ingested" },
-            { label: "125 Features", sub: "Engineered" },
-            { label: "Ensemble", sub: "LGB + XGB" },
-            { label: "0.985", sub: "AUC-ROC" },
+            { num: "7.4M", label: "Transactions Ingested" },
+            { num: "125", label: "Features Engineered" },
+            { num: "2", label: "Models Ensembled" },
+            { num: "0.985", label: "AUC-ROC Achieved" },
           ].map((s, i) => (
-            <div key={s.label} className="flex items-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-xl border border-[#00d4aa30] bg-[#00d4aa08]">
-                <span className="text-lg font-[900] text-[#00d4aa]">{s.label}</span>
-                <span className="text-[10px] text-[rgba(255,255,255,0.5)]">{s.sub}</span>
+            <div key={s.num} className="flex items-center gap-3">
+              <div className="flex flex-col items-center justify-center rounded-xl border border-[#00d4aa30] bg-[#00d4aa08] px-5 py-4 min-w-[120px]">
+                <span className="text-2xl font-[900] leading-none text-[#00d4aa]">{s.num}</span>
+                <span className="mt-1 text-[11px] text-[rgba(255,255,255,0.5)]">{s.label}</span>
               </div>
               {i < 3 && (
-                <svg viewBox="0 0 24 24" className="hidden h-4 w-4 text-[#333] sm:block" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg viewBox="0 0 24 24" className="hidden h-4 w-4 shrink-0 text-[#333] sm:block" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
@@ -226,6 +226,7 @@ const SLIDES = [
             <div>
               <div className="font-bold">Kumkum Thakur</div>
               <div className="text-sm text-[rgba(255,255,255,0.5)]">Data Science Guidance, Domain Expertise, Analysis</div>
+              <a href="https://github.com/kumkum-thakur" target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-[#00d4aa] hover:underline">github.com/kumkum-thakur</a>
             </div>
           </div>
           <div className="flex items-start gap-4">
