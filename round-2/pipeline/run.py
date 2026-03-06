@@ -1,267 +1,204 @@
 """
-NFPC Phase 2 — End-to-End Orchestrator
+NFPC Phase 2 — Pipeline Orchestrator (V2)
 
-Runs the complete mule detection pipeline:
-  1. Feature engineering (3 passes + graph + temporal)
-  2. Label cleaning (confident learning + heuristic)
-  3. Model training (LGB + XGB + CatBoost ensemble)
-  4. Probability calibration + ensemble
-  5. Temporal window prediction for mules
-  6. Submission file generation
+Stages:
+  1. Feature engineering (4 passes + combine)
+  2. Label cleaning + sample weights
+  3. Model training (Optuna HPO + ensemble + stacking + calibration)
+  4. Temporal window prediction
+  5. Submission generation
 
-Usage:
-  python run.py                  # Full pipeline
-  python run.py --skip-features  # Skip feature engineering (use cached)
-  python run.py --skip-graph     # Skip graph features (slow)
-  python run.py --stage features # Run only feature engineering
-  python run.py --stage train    # Run only training (features must exist)
-  python run.py --stage predict  # Run only prediction (models must exist)
+Each stage checkpoints its output. Re-run safely skips completed stages.
 """
-import argparse
+import sys
 import time
+import argparse
 import numpy as np
 import pandas as pd
+import gc
 
 from config import (
-    TRAIN_LABELS_PATH, TEST_ACCOUNTS_PATH, FULL_FEATURES_PATH,
-    GRAPH_FEATURES_PATH, OUTPUT_DIR, MODELS_DIR, log,
+    OUTPUT_DIR, FEATURES_DIR, MODELS_DIR, FULL_FEATURES_PATH,
+    TRAIN_LABELS_PATH, TEST_ACCOUNTS_PATH, log,
 )
 
 
-def stage_features(skip_graph: bool = False):
-    """Run all feature engineering."""
-    from features import build_txn_features, build_txn_additional_features, build_static_features, build_all_features
+def _stage_done(name):
+    marker = OUTPUT_DIR / f".stage_{name}_done"
+    return marker.exists()
 
-    log.info("=" * 60)
-    log.info("STAGE 1: FEATURE ENGINEERING")
-    log.info("=" * 60)
 
+def _mark_done(name):
+    marker = OUTPUT_DIR / f".stage_{name}_done"
+    marker.touch()
+
+
+def _clear_stage(name):
+    marker = OUTPUT_DIR / f".stage_{name}_done"
+    if marker.exists():
+        marker.unlink()
+
+
+def run_pipeline(skip_optuna=False, force_stage=None):
+    """Run full pipeline with crash-safe checkpointing."""
     t0 = time.time()
 
-    # Pass 1: Transaction features
-    log.info("── Pass 1: Transaction features ──")
-    build_txn_features()
+    # ── Stage 1: Features ──
+    if force_stage == "features":
+        _clear_stage("features")
 
-    # Pass 2: Transaction additional features
-    log.info("── Pass 2: Transaction additional features ──")
-    build_txn_additional_features()
-
-    # Pass 3: Static features
-    log.info("── Pass 3: Static features ──")
-    build_static_features()
-
-    # Graph features (optional — slow but valuable)
-    if not skip_graph:
-        log.info("── Graph features ──")
-        from graph_features import build_graph_features
-        build_graph_features()
+    if not _stage_done("features"):
+        log.info("══════ STAGE 1: Feature Engineering ══════")
+        from features import build_all_features
+        features = build_all_features()
+        _mark_done("features")
+        log.info("Stage 1 complete: %s features", features.shape)
     else:
-        log.info("Skipping graph features (--skip-graph)")
-
-    # Temporal features skipped here — computed during prediction stage
-    # for predicted mule accounts only (avoids OOM on 400M transactions)
-    log.info("Temporal features deferred to prediction stage")
-
-    # Combine all
-    log.info("── Combining all features ──")
-    features = build_all_features()
-
-    elapsed = time.time() - t0
-    log.info("Feature engineering complete: %s (%d features, %.1f min)",
-             features.shape, features.shape[1], elapsed / 60)
-
-    return features
-
-
-def stage_train(features: pd.DataFrame = None):
-    """Run label cleaning and model training."""
-    from label_cleaning import compute_sample_weights
-    from models import (
-        adversarial_validation, train_ensemble, calibrate_and_ensemble,
-        save_models, run_shap_analysis,
-    )
-
-    log.info("=" * 60)
-    log.info("STAGE 2: MODEL TRAINING")
-    log.info("=" * 60)
-
-    t0 = time.time()
-
-    # Load data
-    if features is None:
+        log.info("Stage 1 (features) already done — loading from cache")
         features = pd.read_parquet(FULL_FEATURES_PATH)
-    train_labels = pd.read_parquet(TRAIN_LABELS_PATH)
-    test_accounts = pd.read_parquet(TEST_ACCOUNTS_PATH)
+    gc.collect()
 
-    # Split train/test features
-    train_ids = train_labels["account_id"].values
+    # ── Stage 2: Label Cleaning ──
+    if force_stage == "labels":
+        _clear_stage("labels")
+
+    sample_weights = None
+    weights_path = OUTPUT_DIR / "sample_weights.npy"
+    if not _stage_done("labels"):
+        log.info("══════ STAGE 2: Label Cleaning ══════")
+        from label_cleaning import compute_sample_weights
+
+        labels = pd.read_parquet(TRAIN_LABELS_PATH)
+        train_ids = labels["account_id"].values
+        X_train = features.loc[features.index.isin(train_ids)].copy()
+        labels_aligned = labels.set_index("account_id").loc[X_train.index].reset_index()
+        y_train = labels_aligned.set_index("account_id")["is_mule"]
+
+        # Use numeric columns only for label cleaning
+        numeric_cols = X_train.select_dtypes(include=[np.number]).columns.tolist()
+        sample_weights = compute_sample_weights(labels_aligned, X_train[numeric_cols], y_train)
+        np.save(weights_path, sample_weights)
+        _mark_done("labels")
+        log.info("Stage 2 complete: %d sample weights computed", len(sample_weights))
+    else:
+        log.info("Stage 2 (labels) already done — loading from cache")
+        if weights_path.exists():
+            sample_weights = np.load(weights_path)
+    gc.collect()
+
+    # ── Stage 3: Model Training ──
+    if force_stage == "models":
+        _clear_stage("models")
+
+    if not _stage_done("models"):
+        log.info("══════ STAGE 3: Model Training ══════")
+        from models import train_and_predict
+        results = train_and_predict(
+            features,
+            sample_weights=sample_weights,
+            skip_optuna=skip_optuna,
+        )
+        _mark_done("models")
+        log.info("Stage 3 complete: ensemble AUC=%.5f", results["oof_auc"])
+    else:
+        log.info("Stage 3 (models) already done — loading from cache")
+        # Reconstruct results from saved artifacts
+        oof_df = pd.read_csv(OUTPUT_DIR / "oof_predictions.csv")
+        test_accounts = pd.read_parquet(TEST_ACCOUNTS_PATH)
+        # Load test predictions from submission if it exists
+        results = {"oof_auc": 0.0}
+        if (OUTPUT_DIR / "submission_raw.parquet").exists():
+            raw = pd.read_parquet(OUTPUT_DIR / "submission_raw.parquet")
+            results["mule_predictions"] = raw.set_index("account_id")["is_mule"]
+            results["test_predictions"] = raw["is_mule"].values
+            results["test_accounts"] = raw["account_id"].values
+        else:
+            log.warning("No cached model predictions found — re-run stage 3")
+            _clear_stage("models")
+            from models import train_and_predict
+            results = train_and_predict(features, sample_weights, skip_optuna)
+            _mark_done("models")
+    gc.collect()
+
+    # ── Stage 4: Temporal Windows ──
+    if force_stage == "temporal":
+        _clear_stage("temporal")
+
+    if not _stage_done("temporal"):
+        log.info("══════ STAGE 4: Temporal Window Prediction ══════")
+        from temporal import build_temporal_features_and_windows
+
+        mule_preds = results.get("mule_predictions")
+        _, windows = build_temporal_features_and_windows(
+            mule_predictions=mule_preds,
+            mule_threshold=0.3,
+        )
+        _mark_done("temporal")
+        log.info("Stage 4 complete: %d windows predicted", len(windows))
+    else:
+        log.info("Stage 4 (temporal) already done — loading from cache")
+        windows_path = OUTPUT_DIR / "suspicious_windows.parquet"
+        if windows_path.exists():
+            windows = pd.read_parquet(windows_path)
+        else:
+            windows = pd.DataFrame()
+    gc.collect()
+
+    # ── Stage 5: Submission ──
+    log.info("══════ STAGE 5: Submission Generation ══════")
+    test_accounts = pd.read_parquet(TEST_ACCOUNTS_PATH)
     test_ids = test_accounts["account_id"].values
 
-    X_train = features.loc[features.index.isin(train_ids)].copy()
-    X_test = features.loc[features.index.isin(test_ids)].copy()
+    submission = pd.DataFrame({"account_id": test_ids})
 
-    # Align labels
-    labels_indexed = train_labels.set_index("account_id")
-    y_train = labels_indexed.loc[X_train.index, "is_mule"]
-
-    log.info("Train: %s, Test: %s", X_train.shape, X_test.shape)
-    log.info("Mule rate: %.4f (%d mules / %d total)",
-             y_train.mean(), y_train.sum(), len(y_train))
-
-    # Adversarial validation
-    adversarial_validation(X_train, X_test)
-
-    # Label cleaning → sample weights
-    log.info("── Label cleaning ──")
-    sample_weights = compute_sample_weights(
-        labels_indexed.loc[X_train.index].reset_index(),
-        X_train,
-        y_train,
-    )
-
-    # Train ensemble
-    log.info("── Training ensemble ──")
-    results = train_ensemble(X_train, y_train, sample_weights=sample_weights)
-
-    # Calibrate + ensemble
-    ensemble_oof = calibrate_and_ensemble(results, X_train, y_train)
-
-    # SHAP analysis
-    run_shap_analysis(results, X_train)
-
-    # Save everything
-    save_models(results)
-
-    elapsed = time.time() - t0
-    log.info("Training complete (%.1f min)", elapsed / 60)
-
-    return results, X_test
-
-
-def stage_predict(results: dict = None, X_test: pd.DataFrame = None):
-    """Generate predictions and submission file."""
-    from models import predict_test
-    from temporal import build_temporal_features_and_windows
-
-    log.info("=" * 60)
-    log.info("STAGE 3: PREDICTION & SUBMISSION")
-    log.info("=" * 60)
-
-    t0 = time.time()
-
-    # Load if not provided
-    if results is None or X_test is None:
-        import joblib
-        features = pd.read_parquet(FULL_FEATURES_PATH)
-        test_accounts = pd.read_parquet(TEST_ACCOUNTS_PATH)
-        test_ids = test_accounts["account_id"].values
-        X_test = features.loc[features.index.isin(test_ids)].copy()
-
-        # Reconstruct results
-        results = {"models": {}, "calibrators": None, "ensemble_weights": None}
-        results["calibrators"] = joblib.load(MODELS_DIR / "calibrators.joblib")
-        results["ensemble_weights"] = joblib.load(MODELS_DIR / "ensemble_weights.joblib")
-
-        for model_type in results["ensemble_weights"].keys():
-            fold_models = []
-            for i in range(5):
-                path = MODELS_DIR / f"{model_type}_fold{i}.joblib"
-                fold_models.append(joblib.load(path))
-            results["models"][model_type] = fold_models
-
-    # Generate test predictions
-    test_preds = predict_test(results, X_test)
-
-    # Create predictions series for temporal window detection
-    pred_series = pd.Series(test_preds, index=X_test.index, name="is_mule")
-
-    # Temporal window prediction for high-probability mules
-    log.info("── Temporal window prediction ──")
-    _, windows = build_temporal_features_and_windows(
-        mule_predictions=pred_series,
-        mule_threshold=0.3,
-    )
-
-    # Build submission
-    log.info("── Building submission ──")
-    submission = pd.DataFrame({
-        "account_id": X_test.index,
-        "is_mule": test_preds,
-    })
-
-    # Merge windows
-    if len(windows) > 0:
-        submission = submission.merge(
-            windows[["account_id", "suspicious_start", "suspicious_end"]],
-            on="account_id",
-            how="left",
-        )
+    # Merge predictions
+    if "mule_predictions" in results:
+        pred_series = results["mule_predictions"]
+        submission["is_mule"] = submission["account_id"].map(pred_series).fillna(0.0)
     else:
-        submission["suspicious_start"] = ""
-        submission["suspicious_end"] = ""
+        preds = pd.Series(results["test_predictions"], index=results["test_accounts"])
+        submission["is_mule"] = submission["account_id"].map(preds).fillna(0.0)
 
-    submission["suspicious_start"] = submission["suspicious_start"].fillna("")
-    submission["suspicious_end"] = submission["suspicious_end"].fillna("")
+    # Merge temporal windows
+    submission["suspicious_start"] = ""
+    submission["suspicious_end"] = ""
 
-    # Save
-    submission_path = OUTPUT_DIR / "submission.csv"
-    submission.to_csv(submission_path, index=False)
-    log.info("Saved submission to %s", submission_path)
-    log.info("Submission shape: %s", submission.shape)
-    log.info("Predicted mules (>0.5): %d", (test_preds > 0.5).sum())
-    log.info("Predicted mules (>0.3): %d", (test_preds > 0.3).sum())
-    log.info("Mean prediction: %.4f", test_preds.mean())
+    if len(windows) > 0:
+        window_dict = windows.set_index("account_id").to_dict("index")
+        for idx, row in submission.iterrows():
+            acct = row["account_id"]
+            if acct in window_dict:
+                submission.at[idx, "suspicious_start"] = window_dict[acct].get("suspicious_start", "")
+                submission.at[idx, "suspicious_end"] = window_dict[acct].get("suspicious_end", "")
+
+    # Save raw predictions (for cache)
+    submission.to_parquet(OUTPUT_DIR / "submission_raw.parquet", index=False)
+
+    # Save final CSV
+    submission.to_csv(OUTPUT_DIR / "submission.csv", index=False)
+
+    # Stats
+    n_mules_30 = (submission["is_mule"] >= 0.3).sum()
+    n_mules_50 = (submission["is_mule"] >= 0.5).sum()
+    n_windows = (submission["suspicious_start"] != "").sum()
+    log.info("Submission saved: %d rows", len(submission))
+    log.info("  Predicted mules (p>=0.3): %d (%.1f%%)", n_mules_30, 100 * n_mules_30 / len(submission))
+    log.info("  Predicted mules (p>=0.5): %d (%.1f%%)", n_mules_50, 100 * n_mules_50 / len(submission))
+    log.info("  Accounts with temporal windows: %d", n_windows)
 
     elapsed = time.time() - t0
-    log.info("Prediction complete (%.1f min)", elapsed / 60)
-
-    # Summary
-    log.info("=" * 60)
-    log.info("PIPELINE COMPLETE")
-    log.info("=" * 60)
-    log.info("Submission: %s", submission_path)
-    log.info("Models: %s", MODELS_DIR)
-    log.info("Features: %s", FULL_FEATURES_PATH)
+    log.info("Pipeline complete in %.1f minutes", elapsed / 60)
+    log.info("Output: %s", OUTPUT_DIR / "submission.csv")
 
     return submission
 
 
-def main():
-    parser = argparse.ArgumentParser(description="NFPC Phase 2 Pipeline")
-    parser.add_argument("--stage", choices=["features", "train", "predict", "all"],
-                        default="all", help="Pipeline stage to run")
-    parser.add_argument("--skip-graph", action="store_true",
-                        help="Skip graph feature extraction (slow)")
-    parser.add_argument("--skip-features", action="store_true",
-                        help="Skip feature engineering (use cached)")
-    args = parser.parse_args()
-
-    log.info("NFPC Phase 2 Pipeline — Starting")
-    log.info("Stage: %s", args.stage)
-    pipeline_start = time.time()
-
-    if args.stage == "features":
-        stage_features(skip_graph=args.skip_graph)
-
-    elif args.stage == "train":
-        features = None
-        if not args.skip_features:
-            features = stage_features(skip_graph=args.skip_graph)
-        stage_train(features)
-
-    elif args.stage == "predict":
-        stage_predict()
-
-    elif args.stage == "all":
-        features = None
-        if not args.skip_features:
-            features = stage_features(skip_graph=args.skip_graph)
-        results, X_test = stage_train(features)
-        stage_predict(results, X_test)
-
-    total_elapsed = time.time() - pipeline_start
-    log.info("Total pipeline time: %.1f min", total_elapsed / 60)
-
-
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="NFPC Phase 2 Pipeline")
+    parser.add_argument("--skip-optuna", action="store_true",
+                        help="Skip Optuna HPO (use default params)")
+    parser.add_argument("--force-stage", type=str, default=None,
+                        choices=["features", "labels", "models", "temporal"],
+                        help="Force re-run a specific stage")
+    args = parser.parse_args()
+    run_pipeline(skip_optuna=args.skip_optuna, force_stage=args.force_stage)

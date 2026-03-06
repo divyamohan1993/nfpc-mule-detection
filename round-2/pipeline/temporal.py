@@ -1,171 +1,289 @@
 """
-NFPC Phase 2 — Temporal Window Prediction
+NFPC Phase 2 — Temporal Window Prediction (V3)
 
-For accounts predicted as mules, identify the suspicious activity window
-(suspicious_start, suspicious_end) for temporal IoU scoring.
+For accounts predicted as mules, identify suspicious_start/suspicious_end.
 
-Research-grade approaches:
-  1. Sliding window anomaly scoring — score each time window by
-     transaction behavior deviation from account baseline
-  2. Change-point detection (PELT via ruptures) — detect regime changes
-     in transaction patterns
-  3. Combined scoring — merge sliding window + change-point signals
-  4. Rapid pass-through detection — credit→debit time deltas within window
-
-The temporal features are also extracted per-account for use in the
-main classification model.
+V3: Fully vectorized numpy — no Python loops over windows.
+Uses searchsorted + cumsum tricks for O(n) sliding window stats.
 """
 import numpy as np
 import pandas as pd
 from glob import glob
 from collections import defaultdict
 from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
 
 from config import (
-    TXN_DIR, TEMPORAL_FEATURES_PATH, OUTPUT_DIR,
-    RAPID_PASSTHROUGH_HOURS, DORMANCY_DAYS, STRUCTURING_THRESHOLDS,
-    log,
+    TXN_DIR, TRAIN_LABELS_PATH, TEMPORAL_FEATURES_PATH, OUTPUT_DIR,
+    RAPID_PASSTHROUGH_HOURS, DORMANCY_DAYS,
+    log, N_THREADS, SEED,
 )
 
+ROUND_AMOUNTS = np.array([1000, 2000, 5000, 10000, 25000, 50000, 100000])
 
-def _sliding_window_anomaly(
-    timestamps: np.ndarray,
-    amounts: np.ndarray,
-    txn_types: np.ndarray,
-    window_days: int = 30,
-    stride_days: int = 7,
-) -> tuple[pd.Timestamp, pd.Timestamp, float]:
+
+def _learn_window_stats():
+    """Learn typical suspicious activity window from mule_flag_date in training."""
+    labels = pd.read_parquet(TRAIN_LABELS_PATH)
+    mules = labels[labels["is_mule"] == 1].copy()
+    mules["mule_flag_date"] = pd.to_datetime(mules["mule_flag_date"], errors="coerce")
+    valid = mules.dropna(subset=["mule_flag_date"])
+
+    if len(valid) == 0:
+        return {"median_lookback_days": 60}
+
+    flag_dates = valid["mule_flag_date"]
+    ref = pd.Timestamp("2025-06-30")
+    days_before_ref = (ref - flag_dates).dt.days
+    return {"median_lookback_days": max(int(days_before_ref.median()), 30)}
+
+
+def _compute_window_scores(ts_sec, abs_amounts, is_credit, is_debit,
+                           starts, ends, cum_abs, cum_credit, cum_debit,
+                           cum_round, cum_near_50k, cum_credit_amt, cum_debit_amt,
+                           baseline_rate, baseline_amt, n, window_days):
+    """Vectorized scoring for a batch of windows. Returns (scores, left_idx, right_idx, counts)."""
+    left_idx = np.searchsorted(ts_sec, starts, side="left")
+    right_idx = np.searchsorted(ts_sec, ends, side="left")
+    counts = right_idx - left_idx
+
+    valid_mask = counts >= 2
+    if not valid_mask.any():
+        return None, valid_mask, None, None, None
+
+    w_counts = counts[valid_mask].astype(np.float64)
+    l = left_idx[valid_mask]
+    r = right_idx[valid_mask]
+
+    w_abs_sum = cum_abs[r] - cum_abs[l]
+    w_abs_mean = w_abs_sum / w_counts
+    w_n_credit = cum_credit[r] - cum_credit[l]
+    w_n_debit = cum_debit[r] - cum_debit[l]
+    w_n_round = cum_round[r] - cum_round[l]
+    w_n_near_50k = cum_near_50k[r] - cum_near_50k[l]
+    w_credit_sum = cum_credit_amt[r] - cum_credit_amt[l]
+    w_debit_sum = cum_debit_amt[r] - cum_debit_amt[l]
+
+    velocity = (w_counts / window_days) / max(baseline_rate, 0.01)
+    amt_score = w_abs_mean / max(baseline_amt, 1.0)
+    imbalance = np.abs(w_n_credit - w_n_debit) / w_counts
+    round_ratio = w_n_round / w_counts
+    near_50k_ratio = w_n_near_50k / w_counts
+    max_cd = np.maximum(w_credit_sum, w_debit_sum)
+    max_cd = np.where(max_cd < 1, 1, max_cd)
+    passthrough = np.minimum(w_credit_sum, w_debit_sum) / max_cd
+    concentration = w_counts / n
+
+    # Recency bias: windows ending closer to the last transaction score higher
+    # Mule activity is typically recent relative to detection
+    span_sec = max(ts_sec[-1] - ts_sec[0], 1)
+    recency = (ends[valid_mask] - ts_sec[0]).astype(np.float64) / span_sec
+
+    scores = (
+        0.22 * np.minimum(velocity, 10) / 10
+        + 0.18 * np.minimum(amt_score, 10) / 10
+        + 0.14 * imbalance
+        + 0.14 * passthrough
+        + 0.09 * round_ratio
+        + 0.09 * near_50k_ratio
+        + 0.04 * concentration
+        + 0.10 * recency  # bias toward recent windows
+    )
+
+    return scores, valid_mask, starts[valid_mask], ends[valid_mask], w_counts
+
+
+def _sliding_window_anomaly_fast(ts_sec, abs_amounts, is_credit, is_debit,
+                                  window_days=30, stride_days=7):
     """
-    Find the time window with highest anomaly concentration.
-
-    Anomaly score per window = weighted combination of:
-      - Transaction velocity (count / window_days)
-      - Amount intensity (sum / baseline_mean)
-      - Credit-debit imbalance
-      - Round amount ratio
-      - Structuring ratio (near-threshold)
-
-    Returns (start, end, peak_score).
+    Vectorized sliding window anomaly scoring using cumsum + searchsorted.
+    V4: Adds recency bias, window refinement, and transaction-boundary clipping.
+    ts_sec: sorted int64 array of unix seconds
     """
-    if len(timestamps) < 3:
+    n = len(ts_sec)
+    if n < 3:
         return None, None, 0.0
 
-    ts = pd.to_datetime(timestamps)
-    sort_idx = ts.argsort()
-    ts = ts[sort_idx]
-    amounts = amounts[sort_idx]
-    txn_types = txn_types[sort_idx]
+    window_sec = window_days * 86400
+    stride_sec = stride_days * 86400
+    span_sec = max(ts_sec[-1] - ts_sec[0], 1)
+    baseline_rate = n / (span_sec / 86400)
+    baseline_amt = np.mean(abs_amounts) if n > 0 else 1.0
 
-    # Baseline stats (full history)
-    span_days = max((ts.max() - ts.min()).days, 1)
-    baseline_rate = len(ts) / span_days  # txn/day
-    baseline_amt = np.mean(np.abs(amounts)) if len(amounts) > 0 else 1.0
+    # Build window start positions
+    starts = np.arange(ts_sec[0], ts_sec[-1] + stride_sec, stride_sec, dtype=np.int64)
+    ends = starts + window_sec
+    n_windows = len(starts)
 
-    best_score = 0.0
-    best_start = None
-    best_end = None
+    if n_windows == 0:
+        return None, None, 0.0
 
-    window = pd.Timedelta(days=window_days)
-    stride = pd.Timedelta(days=stride_days)
+    # Precompute cumulative sums (shared across coarse + refinement passes)
+    cum_abs = np.concatenate([[0], np.cumsum(abs_amounts)])
+    cum_credit = np.concatenate([[0], np.cumsum(is_credit)])
+    cum_debit = np.concatenate([[0], np.cumsum(is_debit)])
 
-    t = ts.min()
-    while t + window <= ts.max() + stride:
-        mask = (ts >= t) & (ts < t + window)
-        if mask.sum() < 2:
-            t += stride
-            continue
+    is_round = np.isin(abs_amounts.astype(np.int64), ROUND_AMOUNTS)
+    cum_round = np.concatenate([[0], np.cumsum(is_round)])
 
-        w_amounts = amounts[mask]
-        w_types = txn_types[mask]
-        w_count = mask.sum()
+    is_near_50k = (abs_amounts >= 42500) & (abs_amounts < 50000)
+    cum_near_50k = np.concatenate([[0], np.cumsum(is_near_50k)])
 
-        # Velocity anomaly
-        velocity_score = (w_count / window_days) / max(baseline_rate, 0.01)
+    credit_amts = abs_amounts * is_credit
+    debit_amts = abs_amounts * is_debit
+    cum_credit_amt = np.concatenate([[0], np.cumsum(credit_amts)])
+    cum_debit_amt = np.concatenate([[0], np.cumsum(debit_amts)])
 
-        # Amount intensity
-        amt_score = np.mean(np.abs(w_amounts)) / max(baseline_amt, 1.0)
+    # Coarse pass
+    result = _compute_window_scores(
+        ts_sec, abs_amounts, is_credit, is_debit,
+        starts, ends, cum_abs, cum_credit, cum_debit,
+        cum_round, cum_near_50k, cum_credit_amt, cum_debit_amt,
+        baseline_rate, baseline_amt, n, window_days,
+    )
+    if result[0] is None:
+        return None, None, 0.0
 
-        # Credit-debit imbalance
-        n_credit = (w_types == "C").sum()
-        n_debit = (w_types == "D").sum()
-        imbalance = abs(n_credit - n_debit) / max(w_count, 1)
+    scores, valid_mask, valid_starts, valid_ends, w_counts = result
+    best_idx = np.argmax(scores)
+    best_start_sec = valid_starts[best_idx]
+    best_end_sec = valid_ends[best_idx]
+    best_score = float(scores[best_idx])
 
-        # Round amount ratio
-        abs_w = np.abs(w_amounts)
-        round_ratio = np.sum(np.isin(abs_w.astype(int), [1000, 2000, 5000, 10000, 25000, 50000, 100000])) / max(w_count, 1)
-
-        # Near-threshold ratio
-        near_50k = np.sum((abs_w >= 42500) & (abs_w < 50000)) / max(w_count, 1)
-
-        # Combined score
-        score = (
-            0.35 * min(velocity_score, 10) / 10
-            + 0.25 * min(amt_score, 10) / 10
-            + 0.15 * imbalance
-            + 0.15 * round_ratio
-            + 0.10 * near_50k
+    # Refinement pass: finer stride around the best coarse window
+    if stride_days > 2:
+        refine_stride = max(stride_days // 3, 1) * 86400
+        refine_margin = window_sec  # search one window-width on each side
+        ref_starts = np.arange(
+            max(best_start_sec - refine_margin, ts_sec[0]),
+            min(best_start_sec + refine_margin, ts_sec[-1]) + refine_stride,
+            refine_stride, dtype=np.int64,
         )
+        ref_ends = ref_starts + window_sec
+        if len(ref_starts) > 0:
+            ref_result = _compute_window_scores(
+                ts_sec, abs_amounts, is_credit, is_debit,
+                ref_starts, ref_ends, cum_abs, cum_credit, cum_debit,
+                cum_round, cum_near_50k, cum_credit_amt, cum_debit_amt,
+                baseline_rate, baseline_amt, n, window_days,
+            )
+            if ref_result[0] is not None:
+                ref_scores = ref_result[0]
+                ref_best = np.argmax(ref_scores)
+                if float(ref_scores[ref_best]) > best_score:
+                    best_start_sec = ref_result[2][ref_best]
+                    best_end_sec = ref_result[3][ref_best]
+                    best_score = float(ref_scores[ref_best])
 
-        if score > best_score:
-            best_score = score
-            best_start = t
-            best_end = t + window
+    # Clip window to actual transaction boundaries
+    # Find transactions within the window and tighten to first/last actual txn
+    w_left = np.searchsorted(ts_sec, best_start_sec, side="left")
+    w_right = np.searchsorted(ts_sec, best_end_sec, side="left")
+    if w_right > w_left and w_left < n:
+        # Tighten start to first transaction, end to last transaction in window
+        actual_start = ts_sec[w_left]
+        actual_end = ts_sec[min(w_right - 1, n - 1)]
+        # Add small padding (1 hour) so the window covers the edge transactions
+        best_start_sec = actual_start - 3600
+        best_end_sec = actual_end + 3600
 
-        t += stride
+    best_start = pd.Timestamp(best_start_sec, unit="s")
+    best_end = pd.Timestamp(best_end_sec, unit="s")
 
     return best_start, best_end, best_score
 
 
-def _detect_change_points(
-    timestamps: np.ndarray,
-    amounts: np.ndarray,
-    min_size: int = 10,
-) -> list[int]:
+def _process_account(acct_id, ts_sec, abs_amounts, is_credit, is_debit,
+                     amounts, txn_types, window_scales, is_window_account):
+    """Process one account: temporal features + window prediction."""
+    n = len(ts_sec)
+    row = {"account_id": acct_id}
+
+    if n < 2:
+        return row, None
+
+    # Rapid pass-through: vectorized
+    if is_credit.any() and is_debit.any():
+        threshold_sec = RAPID_PASSTHROUGH_HOURS * 3600
+        credit_ts = ts_sec[is_credit]
+        debit_ts = ts_sec[is_debit]
+        # For each credit, find first debit after it using searchsorted
+        insert_pos = np.searchsorted(debit_ts, credit_ts, side="right")
+        valid = insert_pos < len(debit_ts)
+        if valid.any():
+            diffs = debit_ts[insert_pos[valid]] - credit_ts[valid]
+            rapid_count = int((diffs < threshold_sec).sum())
+        else:
+            rapid_count = 0
+        row["rapid_passthrough_count"] = rapid_count
+        row["rapid_passthrough_ratio"] = rapid_count / max(int(is_credit.sum()), 1)
+    else:
+        row["rapid_passthrough_count"] = 0
+        row["rapid_passthrough_ratio"] = 0.0
+
+    # Dormancy detection
+    time_diffs = np.diff(ts_sec)
+    dormancy_threshold = DORMANCY_DAYS * 86400
+    dormant_gaps = np.where(time_diffs > dormancy_threshold)[0]
+    row["n_dormancy_bursts"] = len(dormant_gaps)
+
+    if len(dormant_gaps) > 0:
+        longest_gap_idx = dormant_gaps[np.argmax(time_diffs[dormant_gaps])]
+        post_gap_idx = longest_gap_idx + 1
+        post_gap_window = min(post_gap_idx + 30, n)
+        post_gap_amounts = abs_amounts[post_gap_idx:post_gap_window]
+        row["post_dormancy_txn_count"] = len(post_gap_amounts)
+        row["post_dormancy_amt_mean"] = float(np.mean(post_gap_amounts)) if len(post_gap_amounts) > 0 else 0
+    else:
+        row["post_dormancy_txn_count"] = 0
+        row["post_dormancy_amt_mean"] = 0.0
+
+    # Salary cycle
+    if is_credit.sum() > 5:
+        # Extract day-of-month from unix seconds
+        credit_days = pd.to_datetime(ts_sec[is_credit], unit="s").day
+        salary_window = int(((credit_days <= 5) | (credit_days >= 28)).sum())
+        row["salary_cycle_ratio"] = salary_window / int(is_credit.sum())
+    else:
+        row["salary_cycle_ratio"] = 0.0
+
+    # Recent activity spike
+    ref_sec = int(pd.Timestamp("2025-06-30").timestamp())
+    recent_mask = ts_sec >= (ref_sec - 30 * 86400)
+    recent_count = recent_mask.sum()
+    historical_rate = n / max((ts_sec[-1] - ts_sec[0]) / 86400, 1)
+    row["recent_30d_velocity_ratio"] = (recent_count / 30) / max(historical_rate, 0.01)
+
+    # Window prediction
+    window_row = None
+    if is_window_account:
+        candidates = []
+        for wd, sd in window_scales:
+            s, e, sc = _sliding_window_anomaly_fast(
+                ts_sec, abs_amounts, is_credit, is_debit, wd, sd
+            )
+            if s is not None:
+                candidates.append((s, e, sc))
+
+        if candidates:
+            best = max(candidates, key=lambda x: x[2])
+            window_row = {
+                "account_id": acct_id,
+                "suspicious_start": best[0].isoformat(),
+                "suspicious_end": best[1].isoformat(),
+                "window_score": best[2],
+            }
+
+    return row, window_row
+
+
+def build_temporal_features_and_windows(mule_predictions=None, mule_threshold=0.3):
     """
-    Detect change points in transaction amount time series using PELT.
-    Falls back to simple variance-based detection if ruptures not available.
+    Build temporal features and suspicious windows for predicted mules.
+    V3: fully vectorized, processes ~1000 accounts in minutes not hours.
     """
-    if len(amounts) < min_size * 2:
-        return []
+    log.info("Building temporal features (V3 vectorized)")
 
-    try:
-        import ruptures as rpt
-        signal = np.abs(amounts).reshape(-1, 1)
-        algo = rpt.Pelt(model="rbf", min_size=min_size).fit(signal)
-        change_points = algo.predict(pen=10)
-        return change_points[:-1]  # last element is len(signal)
-    except ImportError:
-        # Fallback: simple rolling variance change detection
-        abs_amounts = np.abs(amounts)
-        if len(abs_amounts) < 20:
-            return []
-        rolling_var = pd.Series(abs_amounts).rolling(10).var().values
-        rolling_var = rolling_var[~np.isnan(rolling_var)]
-        if len(rolling_var) < 2:
-            return []
-        threshold = np.mean(rolling_var) + 2 * np.std(rolling_var)
-        change_points = np.where(rolling_var > threshold)[0].tolist()
-        return change_points
-
-
-def build_temporal_features_and_windows(
-    mule_predictions: pd.Series = None,
-    mule_threshold: float = 0.3,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Build temporal features for all accounts and suspicious windows for predicted mules.
-
-    Args:
-        mule_predictions: Series indexed by account_id with mule probability
-        mule_threshold: predict windows for accounts above this threshold
-
-    Returns:
-        temporal_features: DataFrame of temporal features per account
-        windows: DataFrame with suspicious_start, suspicious_end per predicted mule
-    """
-    log.info("Building temporal features")
-
-    # Determine which accounts need window prediction
     if mule_predictions is not None:
         window_accounts = set(
             mule_predictions[mule_predictions > mule_threshold].index
@@ -175,167 +293,75 @@ def build_temporal_features_and_windows(
     else:
         window_accounts = set()
 
-    # If no accounts need window prediction, skip the expensive full scan
     if not window_accounts:
-        log.info("No accounts need window prediction — skipping temporal scan")
-        empty_features = pd.DataFrame(columns=["account_id"]).set_index("account_id")
-        empty_features.to_parquet(TEMPORAL_FEATURES_PATH)
-        return empty_features, pd.DataFrame()
+        empty = pd.DataFrame(columns=["account_id"]).set_index("account_id")
+        empty.to_parquet(TEMPORAL_FEATURES_PATH)
+        return empty, pd.DataFrame()
 
-    # Only accumulate data for accounts that need window prediction (memory-safe)
-    acct_data = defaultdict(lambda: {
-        "timestamps": [], "amounts": [], "txn_types": [], "channels": [],
-    })
+    # Learn typical window patterns
+    window_stats = _learn_window_stats()
+    median_lb = window_stats["median_lookback_days"]
+    window_scales = [(14, 3), (30, 7), (60, 14), (90, 14), (median_lb, 7)]
+
+    # Load transaction data for target accounts
+    acct_data = defaultdict(lambda: {"ts": [], "amt": [], "txn_type": []})
 
     parts = sorted(glob(str(TXN_DIR / "batch-*" / "part_*.parquet")))
-    for part_path in tqdm(parts, desc="Temporal: scanning transactions"):
-        df = pd.read_parquet(
-            part_path,
-            columns=["account_id", "transaction_timestamp", "amount", "txn_type", "channel"],
-        )
-        df["transaction_timestamp"] = pd.to_datetime(df["transaction_timestamp"], format="mixed")
+    PREFETCH = min(8, N_THREADS)
 
-        # Only keep rows for target accounts
+    def _read_part(path):
+        df = pd.read_parquet(
+            path, columns=["account_id", "transaction_timestamp", "amount", "txn_type"],
+        )
         df = df[df["account_id"].isin(window_accounts)]
         if len(df) == 0:
-            continue
+            return None
+        df["ts_sec"] = pd.to_datetime(df["transaction_timestamp"], format="mixed").astype(np.int64) // 10**9
+        return df[["account_id", "ts_sec", "amount", "txn_type"]]
 
-        for acct_id, grp in df.groupby("account_id"):
-            acc = acct_data[acct_id]
-            acc["timestamps"].extend(grp["transaction_timestamp"].values.tolist())
-            acc["amounts"].extend(grp["amount"].values.tolist())
-            acc["txn_types"].extend(grp["txn_type"].values.tolist())
-            acc["channels"].extend(grp["channel"].values.tolist())
-        del df
+    with ThreadPoolExecutor(max_workers=PREFETCH) as pool:
+        for df in tqdm(pool.map(_read_part, parts),
+                       total=len(parts), desc="Temporal: loading txns"):
+            if df is None or len(df) == 0:
+                continue
+            for acct_id, grp in df.groupby("account_id"):
+                acc = acct_data[acct_id]
+                acc["ts"].append(grp["ts_sec"].values)
+                acc["amt"].append(grp["amount"].values)
+                acc["txn_type"].append(grp["txn_type"].values)
+            del df
 
-    log.info("Loaded temporal data for %d accounts (of %d requested)",
-             len(acct_data), len(window_accounts))
+    log.info("Loaded temporal data for %d accounts", len(acct_data))
 
-    # ── Compute temporal features ─────────────────────────
     feature_rows = []
     window_rows = []
 
-    for acct_id, acc in tqdm(acct_data.items(), desc="Computing temporal features"):
-        ts = np.array(acc["timestamps"])
-        amounts = np.array(acc["amounts"])
-        txn_types = np.array(acc["txn_types"])
-        channels = np.array(acc["channels"])
+    for i, (acct_id, acc) in enumerate(tqdm(acct_data.items(), desc="Computing windows")):
+        # Concatenate chunks and sort
+        ts_sec = np.concatenate(acc["ts"]) if len(acc["ts"]) > 1 else acc["ts"][0]
+        amounts = np.concatenate(acc["amt"]) if len(acc["amt"]) > 1 else acc["amt"][0]
+        txn_types = np.concatenate(acc["txn_type"]) if len(acc["txn_type"]) > 1 else acc["txn_type"][0]
 
-        if len(ts) < 2:
-            feature_rows.append({"account_id": acct_id})
-            continue
-
-        sort_idx = np.argsort(ts)
-        ts = ts[sort_idx]
+        sort_idx = np.argsort(ts_sec)
+        ts_sec = ts_sec[sort_idx]
         amounts = amounts[sort_idx]
         txn_types = txn_types[sort_idx]
-        channels = channels[sort_idx]
 
-        row = {"account_id": acct_id}
+        abs_amounts = np.abs(amounts).astype(np.float64)
+        is_credit = (txn_types == "C")
+        is_debit = (txn_types == "D")
 
-        # ── Rapid pass-through detection ──────────────
-        credit_mask = txn_types == "C"
-        debit_mask = txn_types == "D"
-        credit_ts = pd.to_datetime(ts[credit_mask])
-        debit_ts = pd.to_datetime(ts[debit_mask])
-
-        if len(credit_ts) > 0 and len(debit_ts) > 0:
-            # For each credit, find time to next debit
-            rapid_count = 0
-            rapid_amounts = []
-            threshold_sec = RAPID_PASSTHROUGH_HOURS * 3600
-
-            credit_arr = credit_ts.values.astype("datetime64[s]").astype(np.int64)
-            debit_arr = debit_ts.values.astype("datetime64[s]").astype(np.int64)
-
-            for ct in credit_arr:
-                next_debits = debit_arr[debit_arr > ct]
-                if len(next_debits) > 0 and (next_debits[0] - ct) < threshold_sec:
-                    rapid_count += 1
-
-            row["rapid_passthrough_count"] = rapid_count
-            row["rapid_passthrough_ratio"] = rapid_count / max(len(credit_ts), 1)
-        else:
-            row["rapid_passthrough_count"] = 0
-            row["rapid_passthrough_ratio"] = 0.0
-
-        # ── Dormancy burst detection ──────────────────
-        ts_pd = pd.to_datetime(ts)
-        time_diffs = np.diff(ts_pd).astype("timedelta64[s]").astype(float)
-        dormancy_threshold = DORMANCY_DAYS * 86400
-
-        dormant_gaps = np.where(time_diffs > dormancy_threshold)[0]
-        row["n_dormancy_bursts"] = len(dormant_gaps)
-
-        if len(dormant_gaps) > 0:
-            # Activity burst after longest dormancy
-            longest_gap_idx = dormant_gaps[np.argmax(time_diffs[dormant_gaps])]
-            post_gap_idx = longest_gap_idx + 1
-            post_gap_window = min(post_gap_idx + 30, len(ts))
-            post_gap_amounts = np.abs(amounts[post_gap_idx:post_gap_window])
-            row["post_dormancy_txn_count"] = len(post_gap_amounts)
-            row["post_dormancy_amt_mean"] = float(np.mean(post_gap_amounts)) if len(post_gap_amounts) > 0 else 0
-            row["post_dormancy_intensity"] = row["post_dormancy_txn_count"] * row["post_dormancy_amt_mean"]
-        else:
-            row["post_dormancy_txn_count"] = 0
-            row["post_dormancy_amt_mean"] = 0.0
-            row["post_dormancy_intensity"] = 0.0
-
-        # ── Change point features ─────────────────────
-        change_points = _detect_change_points(ts, amounts)
-        row["n_change_points"] = len(change_points)
-
-        # ── Salary cycle detection ────────────────────
-        # Check if credits cluster around month boundaries (days 1-5, 28-31)
-        ts_pd_series = pd.to_datetime(ts)
-        credit_days = ts_pd_series[credit_mask].day
-        if len(credit_days) > 5:
-            salary_window = ((credit_days <= 5) | (credit_days >= 28)).sum()
-            row["salary_cycle_ratio"] = salary_window / len(credit_days)
-        else:
-            row["salary_cycle_ratio"] = 0.0
-
-        # ── Recent activity spike ─────────────────────
-        # Compare last 30 days to historical average
-        ref_date = pd.Timestamp("2025-06-30")
-        recent_mask = ts_pd_series >= (ref_date - pd.Timedelta(days=30))
-        recent_count = recent_mask.sum()
-        historical_rate = len(ts) / max((ts_pd_series.max() - ts_pd_series.min()).days, 1)
-        row["recent_30d_velocity_ratio"] = (recent_count / 30) / max(historical_rate, 0.01)
-
+        row, window_row = _process_account(
+            acct_id, ts_sec, abs_amounts, is_credit, is_debit,
+            amounts, txn_types, window_scales, acct_id in window_accounts
+        )
         feature_rows.append(row)
+        if window_row:
+            window_rows.append(window_row)
 
-        # ── Window prediction for predicted mules ─────
-        if acct_id in window_accounts:
-            start, end, score = _sliding_window_anomaly(
-                ts, amounts, txn_types,
-                window_days=30, stride_days=7,
-            )
-            # Also try wider windows
-            start_60, end_60, score_60 = _sliding_window_anomaly(
-                ts, amounts, txn_types,
-                window_days=60, stride_days=14,
-            )
-            start_90, end_90, score_90 = _sliding_window_anomaly(
-                ts, amounts, txn_types,
-                window_days=90, stride_days=14,
-            )
-
-            # Pick best window
-            candidates = [
-                (start, end, score),
-                (start_60, end_60, score_60),
-                (start_90, end_90, score_90),
-            ]
-            best = max(candidates, key=lambda x: x[2])
-
-            if best[0] is not None:
-                window_rows.append({
-                    "account_id": acct_id,
-                    "suspicious_start": best[0].isoformat(),
-                    "suspicious_end": best[1].isoformat(),
-                    "window_score": best[2],
-                })
+        if (i + 1) % 200 == 0:
+            log.info("  Processed %d/%d accounts, %d windows found",
+                     i + 1, len(acct_data), len(window_rows))
 
     temporal_features = pd.DataFrame(feature_rows)
     if "account_id" in temporal_features.columns:
@@ -350,7 +376,3 @@ def build_temporal_features_and_windows(
         log.info("Saved suspicious windows for %d accounts", len(windows))
 
     return temporal_features, windows
-
-
-if __name__ == "__main__":
-    build_temporal_features_and_windows()
