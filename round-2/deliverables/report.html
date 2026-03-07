@@ -1,0 +1,634 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>NFPC Phase 2 Report</title><style>body { font-family: Segoe UI, Helvetica Neue, Arial, sans-serif; max-width: 820px; margin: 0 auto; padding: 40px 30px; font-size: 11pt; line-height: 1.55; color: #1a1a1a; }
+h1 { font-size: 22pt; border-bottom: 2px solid #2c3e50; padding-bottom: 8px; margin-top: 0; }
+h2 { font-size: 16pt; color: #2c3e50; margin-top: 32px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+h3 { font-size: 12pt; color: #34495e; margin-top: 22px; }
+table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 10pt; }
+th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: left; }
+th { background: #ecf0f1; font-weight: 600; }
+tr:nth-child(even) { background: #f9f9f9; }
+code { background: #f4f4f4; padding: 1px 5px; border-radius: 3px; font-size: 10pt; font-family: Consolas, monospace; }
+pre { background: #f4f4f4; padding: 14px; border-radius: 5px; overflow-x: auto; font-size: 9.5pt; line-height: 1.4; }
+pre code { background: none; padding: 0; }
+strong { color: #2c3e50; }
+hr { border: none; border-top: 1px solid #ddd; margin: 28px 0; }
+@media print { body { font-size: 10.5pt; padding: 0; } @page { margin: 1.5cm; } }</style></head><body><h1>NFPC Phase 2 — Mule Account Detection Report</h1>
+<p><strong>Team</strong>: Divya Mohan | <strong>Date</strong>: March 2026 | <strong>Competition</strong>: National Fraud Prevention Challenge, RBI Innovation Hub × IIT Delhi</p>
+<hr />
+<h2>1. Executive Summary</h2>
+<p>We present a multi-stage pipeline for detecting mule accounts used in money laundering from 400 million banking transactions across 160,000 accounts. Our approach achieves <strong>0.940 calibrated AUC-ROC</strong> and <strong>0.756 F1</strong> through:</p>
+<ul>
+<li><strong>192 engineered features</strong> across 4 data passes (transaction statistics, geolocation/balance trajectories, static account/customer attributes, and network graph centrality)</li>
+<li><strong>Label noise detection</strong> via 2-round confident learning + heuristic red herring scoring, producing sample weights that downweight likely mislabeled accounts</li>
+<li><strong>3-model ensemble</strong> (LightGBM + XGBoost + CatBoost) with stacking meta-learner and isotonic calibration</li>
+<li><strong>Vectorized temporal window prediction</strong> using searchsorted + cumulative sum tricks for O(n) sliding window anomaly scoring across 5 time scales</li>
+</ul>
+<hr />
+<h2>2. Data Understanding</h2>
+<h3>2.1 Scale and Structure</h3>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total accounts</td>
+<td>160,153</td>
+</tr>
+<tr>
+<td>Train labels</td>
+<td>96,091 (2,683 mules, 93,408 legitimate)</td>
+</tr>
+<tr>
+<td>Test accounts</td>
+<td>64,062</td>
+</tr>
+<tr>
+<td>Mule ratio</td>
+<td>1:34 (2.79%)</td>
+</tr>
+<tr>
+<td>Transactions</td>
+<td>~400 million across 396 parquet parts</td>
+</tr>
+<tr>
+<td>Transaction window</td>
+<td>Jul 2020 — Jun 2025 (5 years)</td>
+</tr>
+<tr>
+<td>Total data size</td>
+<td>16.2 GB</td>
+</tr>
+</tbody>
+</table>
+<h3>2.2 Key Observations</h3>
+<p><strong>Label noise is real and deliberate.</strong> Analysis of the 2,683 mule labels revealed:
+- 705 (26.3%) flagged for "Routine Investigation" — a weak signal likely containing false positives
+- 245 (9.1%) have <code>is_mule=1</code> but no <code>alert_reason</code> — highly suspicious red herrings
+- Some <code>mule_flag_date</code> values extend to March 2026, beyond the transaction window — possible data artifacts</p>
+<p><strong>Class imbalance</strong> at 1:34 is significant but improved from Phase 1's 1:90, enabling more reliable minority class learning.</p>
+<p><strong>Distribution shift</strong> between train and test sets was confirmed via adversarial validation (AUC 0.76), indicating certain features behave differently across splits.</p>
+<h3>2.3 Alert Reason Distribution</h3>
+<table>
+<thead>
+<tr>
+<th>Alert Reason</th>
+<th>Count</th>
+<th>% of Mules</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Routine Investigation</td>
+<td>705</td>
+<td>26.3%</td>
+</tr>
+<tr>
+<td>Dormant Account Reactivation</td>
+<td>188</td>
+<td>7.0%</td>
+</tr>
+<tr>
+<td>Rapid Movement of Funds</td>
+<td>177</td>
+<td>6.6%</td>
+</tr>
+<tr>
+<td>MCC-Amount Distribution Anomaly</td>
+<td>150</td>
+<td>5.6%</td>
+</tr>
+<tr>
+<td>Structuring Below Threshold</td>
+<td>146</td>
+<td>5.4%</td>
+</tr>
+<tr>
+<td>Geographic Anomaly</td>
+<td>144</td>
+<td>5.4%</td>
+</tr>
+<tr>
+<td>Other 7 categories</td>
+<td>973</td>
+<td>36.3%</td>
+</tr>
+<tr>
+<td>No reason given</td>
+<td>245</td>
+<td>9.1%</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>3. Feature Engineering (192 Features)</h2>
+<p>Feature engineering was the most compute-intensive stage, processing 400M transactions in 4 passes with memory-efficient batch processing on a 64GB RAM machine with 182GB swap.</p>
+<h3>3.1 Pass 1: Transaction Features (~100 features)</h3>
+<p>Processed all 396 transaction parts with running accumulators per account.</p>
+<p><strong>Volume and amount statistics:</strong>
+- Transaction counts (total, credit, debit), credit/debit ratio
+- Amount distribution: mean, std, CV, min, max, median, percentiles (p25/p75/p95/p99), IQR, skewness, kurtosis
+- Separate credit and debit amount statistics (mean, std, max)
+- Net flow, credit-to-debit amount ratio</p>
+<p><strong>Temporal patterns:</strong>
+- Transaction span (days), transactions per day
+- Inter-transaction time: mean, std, min, max, CV
+- Burstiness index: <code>(std - mean) / (std + mean)</code> — high values indicate bursty rather than regular activity
+- Maximum gap (days), dormancy events (gaps &gt; 90 days)
+- Hour-of-day entropy, day-of-week entropy
+- Night transaction percentage (00:00-06:00), business hours percentage, weekend percentage
+- Monthly transaction count standard deviation and CV
+- Active months count</p>
+<p><strong>Channel diversity (Pattern #4, #12):</strong>
+- Number of unique channels, channel entropy, channel HHI (Herfindahl-Hirschman Index)
+- Top channel share, per-channel percentages for key channels (UPI Credit/Debit, ATM, Cheque, Cash Deposit, NEFT, IMPS, E-commerce)</p>
+<p><strong>MCC-Amount Anomaly (Pattern #13 — new in Phase 2):</strong>
+- Global per-MCC amount population statistics (mean, std) computed across all 400M transactions
+- Per-account z-scores: how much each account's average spend per MCC deviates from the population
+- Features: mean z-score, max absolute z-score, count of outlier MCCs (|z| &gt; 2), outlier ratio
+- Reservoir sampling (500 samples/account) for memory-efficient percentile and Benford's Law computation</p>
+<p><strong>Counterparty analysis (Pattern #4 — Fan-in/Fan-out):</strong>
+- Unique credit counterparties, unique debit counterparties, total unique counterparties
+- Fan-in/fan-out ratio (credit CPs / debit CPs)
+- Counterparty concentration: entropy, HHI, top counterparty share, top-3 share</p>
+<p><strong>Structuring detection (Pattern #2):</strong>
+- Counts and ratios of transactions near thresholds: 50K, 100K, 200K, 500K (within 85-100% of threshold)</p>
+<p><strong>Round amount patterns (Pattern #9):</strong>
+- Count and ratio of exact round amounts (1K, 2K, 5K, 10K, 25K, 50K, 100K)</p>
+<p><strong>Benford's Law divergence:</strong>
+- KL divergence of first-digit distribution from Benford's expected distribution — laundered funds often violate natural digit patterns</p>
+<p><strong>Behavioral change detection:</strong>
+- Before/after midpoint (2023-01-01) comparison: volume change ratio, mean amount change, credit ratio shift, late-period activity concentration</p>
+<h3>3.2 Pass 2: Transaction Additional Features (~30 features)</h3>
+<p>Joined 311 transaction_additional parts with the main transaction ID mapping using chunked vectorized processing.</p>
+<p><strong>Geographic features (Pattern #5):</strong>
+- Latitude/longitude standard deviation, geographic spread (combined std), geographic range (km)
+- Geographic coverage ratio (% of transactions with location data)</p>
+<p><strong>Balance trajectory (Pattern #7 — Income Mismatch):</strong>
+- Running balance: mean, std, min, max, CV, range
+- Near-zero balance count and percentage
+- Maximum drawdown, mean drawdown
+- Balance volatility: <code>mean(|balance_diff|) / |mean_balance|</code></p>
+<p><strong>IP diversity:</strong>
+- Unique IP count, IPs per transaction — high IP diversity can indicate VPN usage or account sharing</p>
+<p><strong>Transaction sub-type distribution:</strong>
+- Percentages of NORMAL, CLT_CASH, LOAN transaction sub-types
+- Cash transaction count (CLT_CASH)</p>
+<p><strong>Part transaction type:</strong>
+- Distribution of CI (Customer Induced), BI (Bank Induced), IP (Interest Paid), IC (Interest Collected)
+- High BI/IP ratio with low CI suggests automated/institutional activity inconsistent with mule patterns</p>
+<h3>3.3 Pass 3: Static Features (~45 features)</h3>
+<p>No label leakage — all features derived from non-label metadata.</p>
+<p><strong>Account attributes:</strong>
+- Account age (days), balance ratios (monthly/quarterly/daily vs average)
+- Balance consistency (std across balance timeframes)
+- Freeze/unfreeze history: binary flags, freeze duration
+- Mobile update recency, KYC recency
+- Product family (Savings/K-family/Overdraft), nomination flag, cheque availability</p>
+<p><strong>Customer attributes:</strong>
+- Age, relationship length
+- KYC document count (PAN + Aadhaar + Passport)
+- Digital score (mobile banking + internet banking + ATM card + demat + credit card + FASTag)
+- PIN mismatch (residential vs permanent address PIN — Pattern #5)</p>
+<p><strong>Demographics:</strong>
+- Gender, joint account flag, NRI flag
+- Address update recency, passbook update recency</p>
+<p><strong>Product holdings:</strong>
+- Loan/credit card/overdraft sums and counts
+- Total product count, total outstanding</p>
+<p><strong>Scheme codes:</strong>
+- One-hot encoding of government scheme participation (PMJDY, PMSBY, PMJJBY, APY, SCSS, SSA, REGULAR)</p>
+<p><strong>Branch features (structural only, no label leakage):</strong>
+- <code>branch_code</code> preserved for target encoding within CV folds
+- Employee count, turnover, asset size
+- Branch type (urban/semi-urban/rural)
+- Accounts per employee ratio</p>
+<h3>3.4 Pass 4: Graph Features (~16 features)</h3>
+<p>Built a directed account-counterparty transaction graph from all 396 transaction parts.</p>
+<p><strong>Network centrality:</strong>
+- PageRank (weighted by transaction count) — high PageRank indicates important nodes in the money flow network
+- HITS hub and authority scores — hubs send money widely, authorities receive from many sources
+- Weighted in/out degree (by count and amount)
+- Degree ratio (out/in), amount ratio (out_amount/in_amount) — pass-through indicator</p>
+<p><strong>Community structure:</strong>
+- Louvain community detection — community ID and community size
+- Clustering coefficient — how tightly connected a node's neighbors are
+- Betweenness centrality (sampled k=500) — accounts that bridge different communities may act as intermediaries</p>
+<hr />
+<h2>4. Red Herring Avoidance</h2>
+<p>Red herring handling was a critical component, accounting for 15% of the evaluation. Our approach combines model-driven and heuristic detection.</p>
+<h3>4.1 Confident Learning (Model-Driven)</h3>
+<p>We implemented 2-round confident learning following Northcutt et al. (2021):</p>
+<ol>
+<li><strong>Round 1</strong>: Train a fast LightGBM (500 trees) using 5-fold OOF predictions. Compute per-class probability thresholds <code>t_pos</code> and <code>t_neg</code> as the mean OOF probability within each class.</li>
+<li><strong>Flag mislabels</strong>: Accounts labeled as mule but predicted below <code>t_neg</code> (likely false positives). Accounts labeled legitimate but predicted above <code>t_pos</code> (likely false negatives).</li>
+<li><strong>Round 2</strong>: Repeat with accumulated noise scores for convergence.</li>
+<li><strong>Continuous scoring</strong>: Distance from threshold provides a continuous noise likelihood, not just binary flags.</li>
+</ol>
+<h3>4.2 Heuristic Noise Scoring</h3>
+<p>Based on domain knowledge of the label metadata, we target 6 red herring categories:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Signal</th>
+<th>Noise Score</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RH1</td>
+<td><code>alert_reason = "Routine Investigation"</code></td>
+<td>0.6</td>
+<td>Weakest investigation trigger — 26% of mules, likely many false positives</td>
+</tr>
+<tr>
+<td>RH2</td>
+<td><code>alert_reason</code> is null/empty</td>
+<td>0.8</td>
+<td>Flagged as mule with no investigative basis — strong red herring signal</td>
+</tr>
+<tr>
+<td>RH3</td>
+<td><code>mule_flag_date</code> beyond June 2025</td>
+<td>+0.3</td>
+<td>Dates beyond the transaction window suggest data artifacts</td>
+</tr>
+<tr>
+<td>RH4</td>
+<td><code>mule_flag_date</code> before July 2020</td>
+<td>+0.25</td>
+<td>Flag predates all transaction data — no evidence basis</td>
+</tr>
+<tr>
+<td>RH5</td>
+<td><code>mule_flag_date</code> on exact boundary dates</td>
+<td>+0.15</td>
+<td>Dates like 2020-07-01, 2025-06-30 suggest synthetic generation</td>
+</tr>
+<tr>
+<td>RH6</td>
+<td><code>flagged_by_branch</code> is null for mule</td>
+<td>0.4</td>
+<td>Mule flagged without branch attribution — weak evidence</td>
+</tr>
+</tbody>
+</table>
+<h3>4.3 Sample Weight Computation</h3>
+<p>Combined noise scores (max of confident learning and heuristic scores) are converted to sample weights:</p>
+<pre><code>weight = 1.0 - 0.8 × combined_noise_score
+</code></pre>
+<p>This maps clean samples to weight 1.0 and the noisiest samples to weight 0.2. Critically, we never fully remove samples — even noisy labels carry some signal.</p>
+<h3>4.4 Adversarial Validation as Debiasing</h3>
+<p>We used adversarial validation (LGB classifier distinguishing train vs test distributions) to identify and handle distribution-shifted features:</p>
+<ul>
+<li><strong>AV AUC = 0.76</strong> confirmed moderate distribution shift</li>
+<li>Top 15 features contributing most to train/test separability were removed (AV AUC &gt; 0.75 → "remove" strategy)</li>
+<li>This prevents the model from learning train-specific patterns that don't generalize</li>
+</ul>
+<hr />
+<h2>5. Model Architecture</h2>
+<h3>5.1 Overview</h3>
+<pre><code>Features (192) → Adversarial Debiasing → LOO Target Encoding (branch_code)
+    → 5-Fold Stratified CV:
+        ├─ LightGBM (3000 trees, Optuna-tuned)     → OOF predictions
+        ├─ XGBoost  (3000 trees, early stopping)     → OOF predictions
+        └─ CatBoost (3000 trees, early stopping)     → OOF predictions
+    → Stacking: LogisticRegression(OOF_lgb, OOF_xgb, OOF_cb)
+    → Isotonic Calibration
+    → Final probabilities
+</code></pre>
+<h3>5.2 Individual Models</h3>
+<p><strong>LightGBM</strong> (strongest model, AUC 0.941):
+- Optuna-optimized (40 trials, 3-fold inner CV)
+- Best hyperparameters found via TPE sampler
+- Early stopping at 100 rounds patience</p>
+<p><strong>XGBoost</strong> (AUC 0.935):
+- Conservative default hyperparameters (learning_rate=0.02, max_depth=7)
+- <code>early_stopping_rounds=100</code> in constructor (XGBoost 3.x requirement)
+- Histogram-based tree method for speed</p>
+<p><strong>CatBoost</strong> (AUC 0.847):
+- <code>scale_pos_weight=34</code> instead of <code>auto_class_weights</code> (avoids double-weighting with sample weights)
+- <code>od_type="Iter"</code> with <code>od_wait=100</code> for overfitting detection</p>
+<h3>5.3 Key Technical Decisions</h3>
+<p><strong>Why Optuna only for LightGBM:</strong>
+We discovered that Optuna-tuned hyperparameters for XGBoost and CatBoost performed worse in the main 5-fold CV than conservative defaults. The root cause: 3-fold inner HPO finds parameters with low regularization (e.g., <code>l2_leaf_reg &lt; 1.0</code>) that overfit the HPO folds, causing different prediction scales across the 5 main folds. This cross-fold calibration drift degraded the stacking layer. Conservative defaults with high regularization produce more consistent predictions.</p>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>LGB AUC</th>
+<th>XGB AUC</th>
+<th>CB AUC</th>
+<th>Calibrated AUC</th>
+<th>F1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>All defaults</td>
+<td>0.901</td>
+<td>0.935</td>
+<td>0.847</td>
+<td>0.940</td>
+<td>0.650</td>
+</tr>
+<tr>
+<td>All Optuna</td>
+<td>0.941</td>
+<td>0.911</td>
+<td>0.700</td>
+<td>0.941</td>
+<td>0.710</td>
+</tr>
+<tr>
+<td><strong>Hybrid (best)</strong></td>
+<td><strong>0.941</strong></td>
+<td><strong>0.935</strong></td>
+<td><strong>0.847</strong></td>
+<td><strong>0.940</strong></td>
+<td><strong>0.756</strong></td>
+</tr>
+<tr>
+<td>Optuna v2</td>
+<td>0.941</td>
+<td>0.925</td>
+<td>0.722</td>
+<td>0.928</td>
+<td>0.700</td>
+</tr>
+</tbody>
+</table>
+<p><strong>LOO Target Encoding for branch_code:</strong>
+Branch code was the dominant feature by SHAP importance (4.7x higher than #2). We used leave-one-out target encoding with Bayesian smoothing (smoothing=20, min_samples=30) computed strictly within each CV fold to prevent leakage. Investigation confirmed this is not data leakage — branch code is genuinely predictive of mule clustering (Pattern #12: Branch-Level Collusion).</p>
+<h3>5.4 Stacking and Calibration</h3>
+<ul>
+<li><strong>L1 Meta-learner</strong>: LogisticRegression on the 3 OOF prediction columns, learning optimal weights per model</li>
+<li><strong>Isotonic Calibration</strong>: Monotonic function mapping ensemble predictions to calibrated probabilities, ensuring well-ordered probability estimates</li>
+<li><strong>Fallback</strong>: AUC-weighted average computed alongside stacking; the method with higher OOF AUC is selected automatically</li>
+</ul>
+<hr />
+<h2>6. Temporal Window Prediction</h2>
+<p>For each account predicted as a mule (probability &gt;= 0.3), we identify the most suspicious activity window.</p>
+<h3>6.1 Algorithm</h3>
+<p>We use a vectorized sliding window approach at 5 time scales:</p>
+<table>
+<thead>
+<tr>
+<th>Window (days)</th>
+<th>Stride (days)</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>14</td>
+<td>3</td>
+<td>Catch short, intense bursts</td>
+</tr>
+<tr>
+<td>30</td>
+<td>7</td>
+<td>Standard monthly window</td>
+</tr>
+<tr>
+<td>60</td>
+<td>14</td>
+<td>Medium-term patterns</td>
+</tr>
+<tr>
+<td>90</td>
+<td>14</td>
+<td>Quarterly patterns</td>
+</tr>
+<tr>
+<td>Median lookback</td>
+<td>7</td>
+<td>Calibrated from training mule_flag_date</td>
+</tr>
+</tbody>
+</table>
+<p>The median lookback is learned from the training data: we compute the median number of days between each mule's <code>mule_flag_date</code> and the reference date (June 30, 2025), clamped to a minimum of 30 days.</p>
+<h3>6.2 Window Scoring</h3>
+<p>Each candidate window is scored on 7 dimensions:</p>
+<pre><code>score = 0.25 × velocity_score        (txn rate relative to account baseline)
+      + 0.20 × amount_score          (mean amount relative to account baseline)
+      + 0.15 × imbalance_score       (|credits - debits| / total)
+      + 0.15 × passthrough_score     (min(credit_sum, debit_sum) / max — rapid passthrough)
+      + 0.10 × round_amount_ratio    (proportion of round amounts)
+      + 0.10 × near_50k_ratio        (structuring indicator)
+      + 0.05 × concentration_score   (what fraction of account's total activity is in this window)
+</code></pre>
+<p>Velocity and amount carry the highest weights as the most reliable indicators of anomalous mule behavior within a time window.</p>
+<h3>6.3 Implementation: 3000x Speedup</h3>
+<p>The naive approach (Python loops over windows with per-window datetime parsing) processed ~1 account/39 seconds. Our vectorized implementation:</p>
+<ol>
+<li>Convert timestamps to int64 seconds once</li>
+<li>Use <code>np.searchsorted</code> to find window boundaries in O(log n)</li>
+<li>Use cumulative sum arrays (<code>np.cumsum</code>) for O(1) range sum queries</li>
+<li>Compute all window scores simultaneously via numpy broadcasting</li>
+</ol>
+<p>Result: 1,249 accounts processed in 2 seconds — a 3000x speedup.</p>
+<h3>6.4 Additional Temporal Features</h3>
+<p>Beyond window prediction, we compute per-account temporal features used as model inputs:</p>
+<ul>
+<li><strong>Rapid pass-through</strong>: Count and ratio of credit-debit pairs within 24 hours (vectorized via searchsorted)</li>
+<li><strong>Dormancy bursts</strong>: Number of gaps &gt; 90 days, post-dormancy transaction count and mean amount</li>
+<li><strong>Salary cycle ratio</strong>: Fraction of credits occurring on days 1-5 or 28-31 (Pattern #11)</li>
+<li><strong>Recent velocity ratio</strong>: Last 30 days transaction rate vs historical baseline</li>
+</ul>
+<hr />
+<h2>7. Experiments and Iterations</h2>
+<h3>7.1 Summary of Pipeline Versions</h3>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Changes</th>
+<th>Calibrated AUC</th>
+<th>F1</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v1</td>
+<td>Initial pipeline, all defaults</td>
+<td>0.901</td>
+<td>0.550</td>
+<td>Baseline</td>
+</tr>
+<tr>
+<td>v2</td>
+<td>Added early stopping for XGB/CB, fixed double-weighting</td>
+<td>0.940</td>
+<td>0.650</td>
+<td>Major improvement</td>
+</tr>
+<tr>
+<td>v3</td>
+<td>Added Optuna for all 3 models</td>
+<td>0.941</td>
+<td>0.710</td>
+<td>LGB improved, CB degraded</td>
+</tr>
+<tr>
+<td><strong>v4</strong></td>
+<td><strong>Hybrid: Optuna LGB + default XGB/CB</strong></td>
+<td><strong>0.940</strong></td>
+<td><strong>0.756</strong></td>
+<td><strong>Best overall</strong></td>
+</tr>
+<tr>
+<td>v5</td>
+<td>Optuna v2 for XGB/CB with l2_leaf_reg clamping</td>
+<td>0.928</td>
+<td>0.700</td>
+<td>Regression — abandoned</td>
+</tr>
+</tbody>
+</table>
+<h3>7.2 What Worked</h3>
+<ol>
+<li><strong>Confident learning for label noise</strong> — correctly identified and downweighted red herring labels</li>
+<li><strong>Branch code target encoding</strong> — dominant predictive feature when encoded within CV folds</li>
+<li><strong>Graph features</strong> (PageRank, betweenness, community) — captured network structure of money flows</li>
+<li><strong>MCC-amount anomaly z-scores</strong> — population-level anomaly detection per merchant category</li>
+<li><strong>Adversarial validation + feature removal</strong> — eliminated distribution-shifted features</li>
+<li><strong>Multi-scale temporal windows</strong> — 5 window sizes capture different mule behavior durations</li>
+</ol>
+<h3>7.3 What Didn't Work</h3>
+<ol>
+<li><strong>Optuna for XGBoost/CatBoost</strong> — 3-fold HPO parameters didn't generalize to 5-fold main CV</li>
+<li><strong>CatBoost auto_class_weights + sample_weight</strong> — double-weighting caused extreme instability</li>
+<li><strong>Downweighting instead of removing AV features</strong> — when AV AUC &gt; 0.75, full removal was necessary</li>
+<li><strong>XGB without early_stopping_rounds in constructor</strong> — XGB 3.x silently ignores the parameter if passed only to fit()</li>
+</ol>
+<h3>7.4 Bugs Found and Fixed</h3>
+<table>
+<thead>
+<tr>
+<th>Bug</th>
+<th>Impact</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>XGB early stopping not activating</td>
+<td>OOF 0.854 (trained all 3000 trees)</td>
+<td>Pass <code>early_stopping_rounds</code> in constructor, not fit()</td>
+</tr>
+<tr>
+<td>CatBoost double class weighting</td>
+<td>OOF 0.746 (extreme variance)</td>
+<td>Replace <code>auto_class_weights</code> with <code>scale_pos_weight</code></td>
+</tr>
+<tr>
+<td>Cross-fold calibration drift</td>
+<td>OOF 0.700-0.720 for CB</td>
+<td>Clamp <code>l2_leaf_reg &gt;= 1.0</code>, use conservative defaults</td>
+</tr>
+<tr>
+<td>Feature count mismatch (197 vs 182)</td>
+<td>Inference crash</td>
+<td>Read model's <code>feature_name_</code> and align test features</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>8. Results</h2>
+<h3>8.1 Final Model Performance (5-fold CV)</h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LightGBM OOF AUC</td>
+<td>0.941</td>
+</tr>
+<tr>
+<td>XGBoost OOF AUC</td>
+<td>0.935</td>
+</tr>
+<tr>
+<td>CatBoost OOF AUC</td>
+<td>0.847</td>
+</tr>
+<tr>
+<td>Stacked Ensemble AUC</td>
+<td>0.937</td>
+</tr>
+<tr>
+<td><strong>Calibrated AUC</strong></td>
+<td><strong>0.940</strong></td>
+</tr>
+<tr>
+<td><strong>Best F1</strong></td>
+<td><strong>0.756</strong></td>
+</tr>
+</tbody>
+</table>
+<h3>8.2 Submission Statistics</h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total test accounts</td>
+<td>64,062</td>
+</tr>
+<tr>
+<td>Predicted mules (p &gt;= 0.3)</td>
+<td>951 (1.48%)</td>
+</tr>
+<tr>
+<td>Predicted mules (p &gt;= 0.5)</td>
+<td>799 (1.25%)</td>
+</tr>
+<tr>
+<td>Temporal windows assigned</td>
+<td>947</td>
+</tr>
+<tr>
+<td>Max prediction probability</td>
+<td>0.827</td>
+</tr>
+</tbody>
+</table>
+<h3>8.3 SHAP Feature Importance (Top 20)</h3>
+<p>Branch code target encoding dominated, followed by transaction volume, amount statistics, graph centrality metrics, and behavioral change features. The full SHAP importance ranking confirmed that our feature engineering captured meaningful mule signals across all 13 known behavior patterns.</p>
+<hr />
+<h2>9. Infrastructure</h2>
+<ul>
+<li><strong>Training</strong>: GCP n2-highmem-8 (8 vCPU, 64GB RAM, 100GB SSD + 182GB swap), SPOT instance</li>
+<li><strong>Cost</strong>: ~5.5 INR/hour</li>
+<li><strong>Pipeline runtime</strong>: ~4 hours (features: 2.5h, label cleaning: 0.5h, training: 0.5h, temporal: 0.5h)</li>
+<li><strong>Libraries</strong>: Python 3.10, LightGBM 4.6, XGBoost 3.2, CatBoost 1.2, scikit-learn, NetworkX, Optuna, SHAP</li>
+</ul>
+<hr />
+<h2>10. Conclusion</h2>
+<p>Our approach demonstrates that mule account detection at scale requires careful attention to three often-overlooked aspects:</p>
+<ol>
+<li>
+<p><strong>Label quality</strong>: The deliberate noise injection in this competition mirrors real-world challenges where investigation labels are noisy. Our confident learning + heuristic approach explicitly handles this.</p>
+</li>
+<li>
+<p><strong>Feature stability</strong>: Features that discriminate well on training data may not generalize. Adversarial validation provides an automated safeguard against distribution shift.</p>
+</li>
+<li>
+<p><strong>Model diversity with consistency</strong>: While ensemble diversity helps, the individual models must produce consistent prediction scales across CV folds. Aggressive hyperparameter tuning can actually harm ensemble performance by creating cross-fold calibration drift.</p>
+</li>
+</ol>
+<p>The pipeline processes 16.2GB of data in under 4 hours on a single 8-core machine, producing both mule probability scores and temporal activity windows for a complete AML investigation output.</p></body></html>

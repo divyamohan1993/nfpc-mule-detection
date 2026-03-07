@@ -51,3 +51,7 @@ linkedin-post.txt
 web/.next/
 web/out/
 web/node_modules/
+
+# Phase 2 pipeline artifacts (large, regenerable)
+round-2/pipeline/output/
+round-2/pipeline/submission*.csv

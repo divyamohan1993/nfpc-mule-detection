@@ -81,9 +81,11 @@ Each stage saves checkpoint markers. Re-running safely skips completed stages.
 
 ## Output
 
+The pipeline writes all artifacts to the output directory:
+
 ```
 output/
-  submission.csv                  # Final submission
+  submission.csv                  # Final submission (CSV — upload separately)
   features/full_features.parquet  # Combined feature matrix
   models/lgb_fold*.pkl           # Saved fold models
   models/best_params.pkl         # Optuna hyperparameters
@@ -93,6 +95,27 @@ output/
   shap_importance.csv            # SHAP feature ranking
   suspicious_windows.parquet     # Temporal predictions
 ```
+
+> **Note**: For the competition Code Submission (ZIP), include only source code (`.py`), this `README.md`, `requirements.txt`, and trained model weights (`.pkl` files from `output/models/`). Do **not** include `.parquet`, `.csv`, or other data files — these are prohibited per submission rules.
+
+## Submission Guidelines
+
+The competition has 4 submission phases:
+
+| Phase | Format | Limit |
+|-------|--------|-------|
+| Public | CSV (`account_id,is_mule,suspicious_start,suspicious_end`) | 100/day |
+| Private | Same CSV format | 10 total |
+| Code | Single ZIP archive (source + model weights + README) | 1 only |
+| Report | PDF document | 3 max |
+
+### Code ZIP Contents (allowed file types only)
+
+Include: `.py`, `.md`, `.txt`, `.pkl`, `.joblib`, `.json`, `.yaml`, `.yml`, `.toml`, `.cfg`, `.ini`, `.sh`, `.ipynb`, `.pt`, `.pth`, `.onnx`, `.h5`
+
+**Prohibited**: `.parquet`, `.csv`, `.hdf5`, `.npy`, `.npz`, `.feather` — no training data or dataset copies. Max 200 MB uncompressed.
+
+If model files cause the ZIP to exceed 200 MB, host them on GitHub and link in this README. Include code from earlier iterations if space permits, otherwise link to them.
 
 ## File Descriptions
 
@@ -118,5 +141,5 @@ output/
 
 - Calibrated AUC-ROC: **0.940**
 - Best F1: **0.756**
-- Predicted mules: 992 (p >= 0.3), 886 (p >= 0.5)
-- Temporal windows: 989 accounts
+- Predicted mules: 951 (p >= 0.3), 799 (p >= 0.5)
+- Temporal windows: 947 accounts

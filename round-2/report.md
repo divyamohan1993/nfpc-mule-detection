@@ -197,7 +197,7 @@ We implemented 2-round confident learning following Northcutt et al. (2021):
 
 ### 4.2 Heuristic Noise Scoring
 
-Based on domain knowledge of the label metadata, we target 7 red herring categories:
+Based on domain knowledge of the label metadata, we target 6 red herring categories:
 
 | # | Signal | Noise Score | Rationale |
 |---|--------|-------------|-----------|
@@ -302,28 +302,21 @@ The median lookback is learned from the training data: we compute the median num
 
 ### 6.2 Window Scoring
 
-Each candidate window is scored on 8 dimensions:
+Each candidate window is scored on 7 dimensions:
 
 ```
-score = 0.22 × velocity_score        (txn rate relative to account baseline)
-      + 0.18 × amount_score          (mean amount relative to account baseline)
-      + 0.14 × imbalance_score       (|credits - debits| / total)
-      + 0.14 × passthrough_score     (min(credit_sum, debit_sum) / max — rapid passthrough)
-      + 0.09 × round_amount_ratio    (proportion of round amounts)
-      + 0.09 × near_50k_ratio        (structuring indicator)
-      + 0.04 × concentration_score   (what fraction of account's total activity is in this window)
-      + 0.10 × recency_bias          (bias toward recent windows — mules detected after activity)
+score = 0.25 × velocity_score        (txn rate relative to account baseline)
+      + 0.20 × amount_score          (mean amount relative to account baseline)
+      + 0.15 × imbalance_score       (|credits - debits| / total)
+      + 0.15 × passthrough_score     (min(credit_sum, debit_sum) / max — rapid passthrough)
+      + 0.10 × round_amount_ratio    (proportion of round amounts)
+      + 0.10 × near_50k_ratio        (structuring indicator)
+      + 0.05 × concentration_score   (what fraction of account's total activity is in this window)
 ```
 
-The recency bias reflects the domain insight that mule accounts are typically flagged *after* suspicious activity, so the most suspicious window is likely to be recent relative to the account's transaction history.
+Velocity and amount carry the highest weights as the most reliable indicators of anomalous mule behavior within a time window.
 
-### 6.3 Two-Pass Refinement
-
-After the coarse pass identifies the best window, a refinement pass searches with 3x finer stride around the best window (one window-width margin on each side). This improves temporal alignment without increasing overall complexity.
-
-Additionally, the final window is **clipped to actual transaction boundaries** — the start is tightened to the first transaction within the window, and the end to the last transaction, with 1-hour padding. This prevents unnecessarily wide windows that would reduce IoU.
-
-### 6.4 Implementation: 3000x Speedup
+### 6.3 Implementation: 3000x Speedup
 
 The naive approach (Python loops over windows with per-window datetime parsing) processed ~1 account/39 seconds. Our vectorized implementation:
 
@@ -334,7 +327,7 @@ The naive approach (Python loops over windows with per-window datetime parsing) 
 
 Result: 1,249 accounts processed in 2 seconds — a 3000x speedup.
 
-### 6.5 Additional Temporal Features
+### 6.4 Additional Temporal Features
 
 Beyond window prediction, we compute per-account temporal features used as model inputs:
 
@@ -402,10 +395,10 @@ Beyond window prediction, we compute per-account temporal features used as model
 | Metric | Value |
 |--------|-------|
 | Total test accounts | 64,062 |
-| Predicted mules (p >= 0.3) | 992 (1.55%) |
-| Predicted mules (p >= 0.5) | 886 (1.38%) |
-| Temporal windows assigned | 989 |
-| Mean prediction probability | ~0.03 |
+| Predicted mules (p >= 0.3) | 951 (1.48%) |
+| Predicted mules (p >= 0.5) | 799 (1.25%) |
+| Temporal windows assigned | 947 |
+| Max prediction probability | 0.827 |
 
 ### 8.3 SHAP Feature Importance (Top 20)
 

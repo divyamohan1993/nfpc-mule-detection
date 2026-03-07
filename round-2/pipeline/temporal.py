@@ -38,19 +38,60 @@ def _learn_window_stats():
     return {"median_lookback_days": max(int(days_before_ref.median()), 30)}
 
 
-def _compute_window_scores(ts_sec, abs_amounts, is_credit, is_debit,
-                           starts, ends, cum_abs, cum_credit, cum_debit,
-                           cum_round, cum_near_50k, cum_credit_amt, cum_debit_amt,
-                           baseline_rate, baseline_amt, n, window_days):
-    """Vectorized scoring for a batch of windows. Returns (scores, left_idx, right_idx, counts)."""
+def _sliding_window_anomaly_fast(ts_sec, abs_amounts, is_credit, is_debit,
+                                  window_days=30, stride_days=7):
+    """
+    Vectorized sliding window anomaly scoring using cumsum + searchsorted.
+    ts_sec: sorted int64 array of unix seconds
+    """
+    n = len(ts_sec)
+    if n < 3:
+        return None, None, 0.0
+
+    window_sec = window_days * 86400
+    stride_sec = stride_days * 86400
+    span_sec = max(ts_sec[-1] - ts_sec[0], 1)
+    baseline_rate = n / (span_sec / 86400)
+    baseline_amt = np.mean(abs_amounts) if n > 0 else 1.0
+
+    # Build window start positions
+    starts = np.arange(ts_sec[0], ts_sec[-1] + stride_sec, stride_sec, dtype=np.int64)
+    ends = starts + window_sec
+    n_windows = len(starts)
+
+    if n_windows == 0:
+        return None, None, 0.0
+
+    # Use searchsorted for O(n log n) window boundary finding
     left_idx = np.searchsorted(ts_sec, starts, side="left")
     right_idx = np.searchsorted(ts_sec, ends, side="left")
     counts = right_idx - left_idx
 
+    # Filter windows with >= 2 txns
     valid_mask = counts >= 2
     if not valid_mask.any():
-        return None, valid_mask, None, None, None
+        return None, None, 0.0
 
+    # Cumulative sums for fast range queries
+    cum_abs = np.concatenate([[0], np.cumsum(abs_amounts)])
+    cum_credit = np.concatenate([[0], np.cumsum(is_credit)])
+    cum_debit = np.concatenate([[0], np.cumsum(is_debit)])
+
+    # Round amount flags
+    is_round = np.isin(abs_amounts.astype(np.int64), ROUND_AMOUNTS)
+    cum_round = np.concatenate([[0], np.cumsum(is_round)])
+
+    # Near-50k flags
+    is_near_50k = (abs_amounts >= 42500) & (abs_amounts < 50000)
+    cum_near_50k = np.concatenate([[0], np.cumsum(is_near_50k)])
+
+    # Credit/debit amount sums
+    credit_amts = abs_amounts * is_credit
+    debit_amts = abs_amounts * is_debit
+    cum_credit_amt = np.concatenate([[0], np.cumsum(credit_amts)])
+    cum_debit_amt = np.concatenate([[0], np.cumsum(debit_amts)])
+
+    # Compute all scores vectorized
     w_counts = counts[valid_mask].astype(np.float64)
     l = left_idx[valid_mask]
     r = right_idx[valid_mask]
@@ -74,118 +115,23 @@ def _compute_window_scores(ts_sec, abs_amounts, is_credit, is_debit,
     passthrough = np.minimum(w_credit_sum, w_debit_sum) / max_cd
     concentration = w_counts / n
 
-    # Recency bias: windows ending closer to the last transaction score higher
-    # Mule activity is typically recent relative to detection
-    span_sec = max(ts_sec[-1] - ts_sec[0], 1)
-    recency = (ends[valid_mask] - ts_sec[0]).astype(np.float64) / span_sec
-
     scores = (
-        0.22 * np.minimum(velocity, 10) / 10
-        + 0.18 * np.minimum(amt_score, 10) / 10
-        + 0.14 * imbalance
-        + 0.14 * passthrough
-        + 0.09 * round_ratio
-        + 0.09 * near_50k_ratio
-        + 0.04 * concentration
-        + 0.10 * recency  # bias toward recent windows
+        0.25 * np.minimum(velocity, 10) / 10
+        + 0.20 * np.minimum(amt_score, 10) / 10
+        + 0.15 * imbalance
+        + 0.15 * passthrough
+        + 0.10 * round_ratio
+        + 0.10 * near_50k_ratio
+        + 0.05 * concentration
     )
 
-    return scores, valid_mask, starts[valid_mask], ends[valid_mask], w_counts
-
-
-def _sliding_window_anomaly_fast(ts_sec, abs_amounts, is_credit, is_debit,
-                                  window_days=30, stride_days=7):
-    """
-    Vectorized sliding window anomaly scoring using cumsum + searchsorted.
-    V4: Adds recency bias, window refinement, and transaction-boundary clipping.
-    ts_sec: sorted int64 array of unix seconds
-    """
-    n = len(ts_sec)
-    if n < 3:
-        return None, None, 0.0
-
-    window_sec = window_days * 86400
-    stride_sec = stride_days * 86400
-    span_sec = max(ts_sec[-1] - ts_sec[0], 1)
-    baseline_rate = n / (span_sec / 86400)
-    baseline_amt = np.mean(abs_amounts) if n > 0 else 1.0
-
-    # Build window start positions
-    starts = np.arange(ts_sec[0], ts_sec[-1] + stride_sec, stride_sec, dtype=np.int64)
-    ends = starts + window_sec
-    n_windows = len(starts)
-
-    if n_windows == 0:
-        return None, None, 0.0
-
-    # Precompute cumulative sums (shared across coarse + refinement passes)
-    cum_abs = np.concatenate([[0], np.cumsum(abs_amounts)])
-    cum_credit = np.concatenate([[0], np.cumsum(is_credit)])
-    cum_debit = np.concatenate([[0], np.cumsum(is_debit)])
-
-    is_round = np.isin(abs_amounts.astype(np.int64), ROUND_AMOUNTS)
-    cum_round = np.concatenate([[0], np.cumsum(is_round)])
-
-    is_near_50k = (abs_amounts >= 42500) & (abs_amounts < 50000)
-    cum_near_50k = np.concatenate([[0], np.cumsum(is_near_50k)])
-
-    credit_amts = abs_amounts * is_credit
-    debit_amts = abs_amounts * is_debit
-    cum_credit_amt = np.concatenate([[0], np.cumsum(credit_amts)])
-    cum_debit_amt = np.concatenate([[0], np.cumsum(debit_amts)])
-
-    # Coarse pass
-    result = _compute_window_scores(
-        ts_sec, abs_amounts, is_credit, is_debit,
-        starts, ends, cum_abs, cum_credit, cum_debit,
-        cum_round, cum_near_50k, cum_credit_amt, cum_debit_amt,
-        baseline_rate, baseline_amt, n, window_days,
-    )
-    if result[0] is None:
-        return None, None, 0.0
-
-    scores, valid_mask, valid_starts, valid_ends, w_counts = result
     best_idx = np.argmax(scores)
+    valid_starts = starts[valid_mask]
+    valid_ends = ends[valid_mask]
+
     best_start_sec = valid_starts[best_idx]
     best_end_sec = valid_ends[best_idx]
     best_score = float(scores[best_idx])
-
-    # Refinement pass: finer stride around the best coarse window
-    if stride_days > 2:
-        refine_stride = max(stride_days // 3, 1) * 86400
-        refine_margin = window_sec  # search one window-width on each side
-        ref_starts = np.arange(
-            max(best_start_sec - refine_margin, ts_sec[0]),
-            min(best_start_sec + refine_margin, ts_sec[-1]) + refine_stride,
-            refine_stride, dtype=np.int64,
-        )
-        ref_ends = ref_starts + window_sec
-        if len(ref_starts) > 0:
-            ref_result = _compute_window_scores(
-                ts_sec, abs_amounts, is_credit, is_debit,
-                ref_starts, ref_ends, cum_abs, cum_credit, cum_debit,
-                cum_round, cum_near_50k, cum_credit_amt, cum_debit_amt,
-                baseline_rate, baseline_amt, n, window_days,
-            )
-            if ref_result[0] is not None:
-                ref_scores = ref_result[0]
-                ref_best = np.argmax(ref_scores)
-                if float(ref_scores[ref_best]) > best_score:
-                    best_start_sec = ref_result[2][ref_best]
-                    best_end_sec = ref_result[3][ref_best]
-                    best_score = float(ref_scores[ref_best])
-
-    # Clip window to actual transaction boundaries
-    # Find transactions within the window and tighten to first/last actual txn
-    w_left = np.searchsorted(ts_sec, best_start_sec, side="left")
-    w_right = np.searchsorted(ts_sec, best_end_sec, side="left")
-    if w_right > w_left and w_left < n:
-        # Tighten start to first transaction, end to last transaction in window
-        actual_start = ts_sec[w_left]
-        actual_end = ts_sec[min(w_right - 1, n - 1)]
-        # Add small padding (1 hour) so the window covers the edge transactions
-        best_start_sec = actual_start - 3600
-        best_end_sec = actual_end + 3600
 
     best_start = pd.Timestamp(best_start_sec, unit="s")
     best_end = pd.Timestamp(best_end_sec, unit="s")
