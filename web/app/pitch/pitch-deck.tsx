@@ -19,7 +19,7 @@ const SLIDES = [
           </span>
         </h1>
         <p className="mt-6 max-w-[65ch] text-[clamp(1.1rem,2vw,1.5rem)] leading-[1.6] text-[rgba(255,255,255,0.85)]">
-          ML-powered detection of fraudulent intermediary accounts in Indian banking
+          ML-powered detection of fraudulent intermediary accounts across 160K accounts and 400M+ transactions
         </p>
         <div className="mt-8 text-[0.9rem] text-[rgba(255,255,255,0.4)]">
           Divya Mohan &amp; Kumkum Thakur &middot; Team dmj.one &middot;{" "}
@@ -60,12 +60,12 @@ const SLIDES = [
           Detect Before the <span className="text-[#00d4aa]">Damage</span>
         </h2>
         <div className="my-4 text-[clamp(3rem,8vw,7rem)] font-[900] leading-none text-[#00d4aa]">
-          0.985 AUC
+          0.968 AUC
         </div>
         <p className="max-w-[65ch] text-[clamp(1.1rem,2vw,1.5rem)] leading-[1.6] text-[rgba(255,255,255,0.85)]">
-          Our ensemble model detects mule accounts with 0.985 AUC-ROC —
-          even under extreme 1:90 class imbalance. 12 of 12 known behavioral
-          patterns validated with statistical evidence.
+          Our 3-model ensemble (LightGBM + XGBoost + CatBoost) detects mule accounts
+          with 0.968 Public AUC-ROC across 160K accounts. 208 features, rank averaging,
+          multi-seed CV. Phase 1 achieved 0.985 OOF AUC on 24K accounts.
         </p>
       </>
     ),
@@ -80,10 +80,10 @@ const SLIDES = [
         </h2>
         <div className="mt-8 grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
           {[
-            { num: "7.4M", label: "Transactions Ingested" },
-            { num: "125", label: "Features Engineered" },
-            { num: "2", label: "Models Ensembled" },
-            { num: "0.985", label: "AUC-ROC Achieved" },
+            { num: "400M+", label: "Transactions Ingested" },
+            { num: "208", label: "Features Engineered" },
+            { num: "3", label: "Models Ensembled" },
+            { num: "0.968", label: "Public AUC-ROC" },
           ].map((s, i) => (
             <div key={s.num} className="flex items-center gap-3">
               <div className="flex w-full flex-col items-center justify-center rounded-xl border border-[#00d4aa30] bg-[#00d4aa08] px-3 py-3 sm:w-auto sm:min-w-[120px] sm:px-5 sm:py-4">
@@ -99,8 +99,8 @@ const SLIDES = [
           ))}
         </div>
         <p className="mt-8 max-w-[65ch] text-[clamp(1.1rem,2vw,1.5rem)] leading-[1.6] text-[rgba(255,255,255,0.85)]">
-          13 feature categories including transaction aggregation, structuring detection,
-          velocity, graph/network metrics, and anomaly scores.
+          4 feature passes: transaction core, extended patterns, static account metadata,
+          and graph/network metrics (PageRank, Louvain, betweenness centrality).
         </p>
       </>
     ),
@@ -190,8 +190,8 @@ const SLIDES = [
                 <td className="py-3 pl-4 text-center text-[rgba(255,255,255,0.4)]">Partial</td>
               </tr>
               <tr className="bg-[#00d4aa08]">
-                <td className="py-3 pr-4 font-bold text-[#00d4aa]">Ours (ensemble + SHAP)</td>
-                <td className="px-4 py-3 text-center font-bold text-[#00d4aa]">0.985</td>
+                <td className="py-3 pr-4 font-bold text-[#00d4aa]">Ours (3-model ensemble)</td>
+                <td className="px-4 py-3 text-center font-bold text-[#00d4aa]">0.968</td>
                 <td className="px-4 py-3 text-center font-bold text-[#00d4aa]">12/12</td>
                 <td className="py-3 pl-4 text-center font-bold text-[#00d4aa]">Full SHAP</td>
               </tr>
@@ -253,12 +253,12 @@ const SLIDES = [
         </h2>
         <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 sm:max-w-[600px]">
           {[
-            { val: "0.985", label: "AUC-ROC" },
-            { val: "125", label: "Features" },
-            { val: "12/12", label: "Patterns" },
-            { val: "7.4M", label: "Transactions" },
-            { val: "47", label: "Statistical Tables" },
-            { val: "25", label: "Visualizations" },
+            { val: "0.968", label: "Public AUC-ROC" },
+            { val: "208", label: "Features" },
+            { val: "160K", label: "Accounts" },
+            { val: "400M+", label: "Transactions" },
+            { val: "3x5x3", label: "Model x Fold x Seed" },
+            { val: "6/7", label: "Red Herrings Avoided" },
           ].map((m) => (
             <div key={m.label} className="rounded-lg border border-[#222] bg-[#141414] p-4 text-center">
               <div className="text-2xl font-[900] text-[#00d4aa]">{m.val}</div>
@@ -282,11 +282,11 @@ const SLIDES = [
         </h2>
         <div className="mt-8 space-y-4 sm:max-w-[500px]">
           {[
-            { done: true, text: "EDA + 125-feature pipeline + ensemble model" },
-            { done: true, text: "25 visualizations + full statistical report" },
+            { done: true, text: "Phase 1: EDA + 125-feature pipeline + 0.985 AUC" },
+            { done: true, text: "Phase 2: 208-feature pipeline + 3-model ensemble + 0.968 AUC" },
+            { done: true, text: "Label cleaning, red herring analysis, temporal windows" },
             { done: true, text: "Showcase deployed at nfpc.dmj.one" },
             { done: false, text: "Real-time feature computation (<200ms)" },
-            { done: false, text: "Graph neural network for network-level detection" },
             { done: false, text: "Regulatory sandbox pilot with partner bank" },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3">

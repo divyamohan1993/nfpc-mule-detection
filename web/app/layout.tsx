@@ -15,11 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Mule Account Detection | NFPC - dmj.one",
   description:
-    "Machine learning system detecting money mule accounts with 0.985 AUC-ROC. Built for RBIH x IIT Delhi National Fraud Prevention Challenge.",
+    "ML system detecting money mule accounts across 160K accounts and 400M+ transactions. 208 features, 3-model ensemble, 0.968 AUC-ROC. RBIH x IIT Delhi.",
   openGraph: {
     title: "Mule Account Detection | NFPC",
     description:
-      "0.985 AUC-ROC detecting money mule accounts in Indian banking. 125 engineered features, 12 behavioral patterns, ensemble ML.",
+      "0.968 AUC-ROC detecting money mule accounts in Indian banking. 208 features, 3-model ensemble (LightGBM + XGBoost + CatBoost), 160K accounts.",
     url: "https://nfpc.dmj.one",
     siteName: "dmj.one",
     type: "website",
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Mule Account Detection | NFPC",
     description:
-      "0.985 AUC-ROC detecting money mule accounts in Indian banking.",
+      "0.968 AUC-ROC detecting money mule accounts across 160K accounts. 208 features, 3-model ensemble.",
   },
   robots: { index: true, follow: true },
   alternates: { canonical: "https://nfpc.dmj.one" },

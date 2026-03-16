@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NFPC Phase 2 - Solution Report - Team DMJ.ONE</title>
+<style>
+@page { margin: 2cm; size: A4; }
+body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; font-size: 11pt; }
+h1 { color: #1a365d; border-bottom: 3px solid #2b6cb0; padding-bottom: 8px; font-size: 20pt; }
+h2 { color: #2b6cb0; border-bottom: 1px solid #bee3f8; padding-bottom: 4px; margin-top: 24px; font-size: 14pt; }
+h3 { color: #2c5282; margin-top: 16px; font-size: 12pt; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10pt; }
+th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+th { background: #ebf4ff; font-weight: 600; }
+tr:nth-child(even) { background: #f7fafc; }
+.highlight { background: #fffbeb; padding: 10px; border-left: 4px solid #d69e2e; margin: 12px 0; }
+.metric { font-weight: bold; color: #2b6cb0; }
+code { background: #edf2f7; padding: 2px 6px; border-radius: 3px; font-size: 10pt; }
+ul { margin: 6px 0; }
+li { margin: 3px 0; }
+.page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>National Fraud Prevention Challenge - Phase 2<br>Solution Report</h1>
+<p><strong>Team:</strong> DMJ.ONE | <strong>Date:</strong> March 16, 2026</p>
+
+<h2>1. Approach: Methodology and Architecture</h2>
+
+<h3>1.1 Overview</h3>
+<p>Our solution uses a <strong>3-model gradient-boosted tree ensemble</strong> (LightGBM + XGBoost + CatBoost) with rank averaging, trained on 208 engineered features across transaction, static account, and graph-based feature families. We employ multi-round confident learning for label noise detection and heuristic noise scoring for red herring avoidance.</p>
+
+<h3>1.2 Feature Engineering (208 features)</h3>
+<p>Features are computed in 4 passes over the 16GB dataset using memory-efficient batch processing:</p>
+<table>
+<tr><th>Pass</th><th>Category</th><th>Count</th><th>Description</th></tr>
+<tr><td>1</td><td>Transaction Core</td><td>~100</td><td>Volume, amounts, temporal histograms (hourly/daily/monthly), channel diversity, MCC patterns, counterparty fan-in/out, structuring detection, behavioral change</td></tr>
+<tr><td>2</td><td>Transaction Extended</td><td>~40</td><td>Geographic spread, IP diversity, balance statistics, transaction type distributions, dormancy patterns</td></tr>
+<tr><td>3</td><td>Static Account</td><td>~35</td><td>Account age, freeze history, customer demographics, branch characteristics, scheme codes, product details</td></tr>
+<tr><td>4</td><td>Graph</td><td>~33</td><td>PageRank, HITS scores, betweenness centrality, Louvain community detection, clustering coefficients, component sizes</td></tr>
+</table>
+
+<h3>1.3 Label Cleaning</h3>
+<ul>
+<li><strong>Confident Learning</strong> (2 rounds): Out-of-fold LightGBM probability estimation with per-class thresholds (Northcutt et al. 2021). Identifies samples where model confidence conflicts with the label.</li>
+<li><strong>Heuristic Noise Scoring</strong>: Rule-based detection targeting 7 red herring categories. Assigns noise scores based on metadata signals.</li>
+<li><strong>Combined Weights</strong>: max(CL score, heuristic score) mapped to sample weights in [0.2, 1.0].</li>
+</ul>
+
+<h3>1.4 Model Training</h3>
+<ul>
+<li><strong>Ensemble</strong>: LightGBM + XGBoost + CatBoost, each trained independently</li>
+<li><strong>Cross-validation</strong>: 3-seed (42, 43, 44) x 5-fold stratified CV for stability</li>
+<li><strong>Encoding</strong>: Frequency encoding for categorical features (safe, no label leakage)</li>
+<li><strong>Hyperparameters</strong>: Optuna-optimized (100 trials per model). Best params use near-zero regularization.</li>
+<li><strong>Ensemble method</strong>: Rank averaging outperformed simple averaging, weighted averaging, and stacked meta-learning.</li>
+<li><strong>Class imbalance</strong>: scale_pos_weight = 34 (matching ~2.8% mule ratio)</li>
+</ul>
+
+<h3>1.5 Temporal Window Prediction</h3>
+<p>For accounts predicted as mules, we analyze transaction history using a sliding window approach, scoring each window by anomaly density and selecting the window with the highest concentration of suspicious patterns.</p>
+
+<div class="page-break"></div>
+
+<h2>2. Key Findings: Mule Account Patterns</h2>
+
+<h3>2.1 Top Discriminative Features (SHAP Analysis)</h3>
+<ul>
+<li><strong>Transaction volume</strong>: Total count and unique counterparties are the strongest signals.</li>
+<li><strong>Graph centrality</strong>: PageRank and betweenness capture mules as network intermediaries.</li>
+<li><strong>Channel diversity</strong>: Mules use more diverse transaction channels.</li>
+<li><strong>Temporal patterns</strong>: More off-hours activity and irregular temporal patterns.</li>
+<li><strong>Structuring indicators</strong>: Near-threshold amounts are a strong mule signal.</li>
+<li><strong>Balance behavior</strong>: Rapid credit-debit cycles (pass-through behavior).</li>
+</ul>
+
+<h3>2.2 Mule Behavioral Archetypes</h3>
+<ul>
+<li><strong>Pass-through mules</strong>: High velocity credits followed by rapid debits, minimal balance retention</li>
+<li><strong>Network hubs</strong>: High fan-in/fan-out with many unique counterparties</li>
+<li><strong>Dormant-burst</strong>: Long inactivity followed by sudden intense transaction bursts</li>
+<li><strong>Structuring mules</strong>: Deliberately fragmenting amounts below monitoring thresholds</li>
+</ul>
+
+<h2>3. Experiments: What Worked and What Did Not</h2>
+
+<table>
+<tr><th>Experiment</th><th>Public AUC</th><th>Outcome</th></tr>
+<tr><td>V1: Baseline (LGB+XGB+CB, target encoding)</td><td>0.956</td><td>Good starting point</td></tr>
+<tr><td>V2: Optuna HPO (100 trials per model)</td><td>0.956</td><td>Found optimal near-zero regularization</td></tr>
+<tr><td>V3: Frequency encoding + rank avg + multi-seed</td><td><span class="metric">0.968</span></td><td><strong>Best.</strong> Eliminated leakage, improved stability.</td></tr>
+<tr><td>V5: Feature interactions (26 derived features)</td><td>0.963</td><td>Hurt. Trees discover interactions internally.</td></tr>
+<tr><td>V6: Pseudo-labeling (2-stage training)</td><td>0.787</td><td>Catastrophic. Diluted mule signal from 2.8% to 1.8%.</td></tr>
+<tr><td>V7: Drop all branch features (RH7 fix)</td><td>0.959</td><td>Fixed RH7 but destroyed overall AUC.</td></tr>
+<tr><td>V8: Drop only branch_code freq/count</td><td>0.958</td><td>Surgical RH7 fix. Still too much AUC loss.</td></tr>
+</table>
+
+<div class="highlight">
+<strong>Key Lesson:</strong> With near-zero regularization and powerful tree models, the simplest feature set produces the best generalization. Feature engineering quality matters more than model complexity.
+</div>
+
+<h2>4. Results: Performance Metrics</h2>
+
+<table>
+<tr><th>Metric</th><th>Public Phase</th><th>Private Phase</th></tr>
+<tr><td>AUC-ROC</td><td><span class="metric">0.968136</span></td><td><span class="metric">0.955815</span></td></tr>
+<tr><td>F1 Score</td><td>0.576</td><td>0.536</td></tr>
+<tr><td>Temporal IoU</td><td>0.184</td><td>0.189</td></tr>
+<tr><td>OOF CV AUC</td><td colspan="2">~0.960 (3-seed average)</td></tr>
+</table>
+
+<p>The public-to-private gap (~1.2% AUC) indicates reasonable generalization. The private test set contains more subtle mule patterns with attenuated signals.</p>
+
+<h2>5. Red Herring Analysis</h2>
+
+<table>
+<tr><th>RH</th><th>Description</th><th>Detection Method</th><th>Score</th></tr>
+<tr><td>1</td><td>Routine Investigation false positives</td><td>Heuristic noise weight 0.6</td><td>0.995</td></tr>
+<tr><td>2</td><td>Missing alert_reason</td><td>Heuristic noise weight 0.8</td><td>0.990</td></tr>
+<tr><td>3</td><td>Future mule_flag_date</td><td>Dates after Jun 2025 downweighted</td><td>0.993</td></tr>
+<tr><td>4</td><td>Very old flag dates</td><td>Dates before Jul 2020 downweighted</td><td>0.978</td></tr>
+<tr><td>5</td><td>Boundary date artifacts</td><td>Exact boundary dates flagged</td><td>0.993</td></tr>
+<tr><td>6</td><td>Frozen accounts as mules</td><td>Null flagged_by_branch detected</td><td>0.999</td></tr>
+<tr><td>7</td><td>Flagged by own branch</td><td>Branch features carry both signal and noise</td><td>0.000</td></tr>
+</table>
+
+<div class="highlight">
+<strong>RH7 Analysis:</strong> Branch-related features allow the model to learn the spurious "flagged by own branch" pattern. Removing all branch features achieves RH7=1.000 but drops AUC from 0.956 to 0.893. The branch features carry genuine discriminative signal that outweighs the RH7 penalty. A more nuanced solution would require decorrelating the RH7 signal from branch features without losing predictive power.
+</div>
+
+<h2>6. Infrastructure</h2>
+<ul>
+<li><strong>Compute</strong>: GCP n2-highmem-8 (8 vCPU, 64GB RAM)</li>
+<li><strong>Training time</strong>: ~12 minutes for full 3-seed x 5-fold CV pipeline</li>
+<li><strong>Feature engineering</strong>: ~10 minutes for 208 features across 160K accounts</li>
+<li><strong>Memory management</strong>: Batch processing with garbage collection</li>
+</ul>
+
+</body>
+</html>

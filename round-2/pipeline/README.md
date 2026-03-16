@@ -1,145 +1,74 @@
-# NFPC Phase 2 — Mule Account Detection Pipeline
+# NFPC Phase 2: Mule Account Detection Pipeline
 
-## Environment
+**Team**: DMJ.ONE
+**Approach**: Gradient-boosted tree ensemble (LightGBM + XGBoost + CatBoost) with rank averaging
 
-- **Python**: 3.10+
-- **OS**: Ubuntu 22.04 (tested on GCP n2-highmem-8, 64GB RAM)
-- **Dependencies**: See `requirements.txt`
+## Environment Setup
 
-## Setup
+- Python 3.10+
+- Dependencies: `pip install -r requirements.txt`
+
+Key packages: lightgbm, xgboost, catboost, scikit-learn, pandas, numpy, networkx, optuna, shap
+
+## Reproducing Results
+
+1. Place data files in the path specified by `config.py` (`DATA_DIR`)
+2. Run the pipeline:
 
 ```bash
-pip install -r requirements.txt
+python run_v3.py --skip-optuna
 ```
 
-## Data Preparation
+This will:
+- Build 208 features from transaction, static, and graph data (Stage 1)
+- Compute sample weights via confident learning + heuristic noise detection (Stage 2)
+- Train 3-model ensemble with 3-seed x 5-fold CV (Stage 3)
+- Generate temporal suspicious activity windows (Stage 4)
+- Produce `submission_v3.csv` (Stage 5)
 
-Place the Kaggle dataset files in the data directory (default: `/home/DIVYA/nfpc-phase2/data/`):
-
-```
-data/
-  customers.parquet
-  accounts.parquet
-  demographics.parquet
-  accounts-additional.parquet
-  branch.parquet
-  customer_account_linkage.parquet
-  product_details.parquet
-  train_labels.parquet
-  test_accounts.parquet
-  transactions/
-    batch-1/part_*.parquet
-    batch-2/part_*.parquet
-    ...
-  transactions_additional/
-    batch-1/part_*.parquet
-    ...
-```
-
-Override paths via environment variables:
+To run Optuna hyperparameter optimization first:
 ```bash
-export NFPC_DATA_DIR=/path/to/data
-export NFPC_OUTPUT_DIR=/path/to/output
+python run_v3.py
 ```
 
-## Running the Pipeline
+## Approach Description
 
-### Full pipeline (includes Optuna HPO)
-```bash
-python run.py
+### Feature Engineering (features.py, 208 features)
+- **Transaction features**: Volume, amounts, temporal histograms, channel diversity, MCC patterns, counterparty fan-in/out, structuring detection, behavioral change metrics
+- **Additional transaction features**: Geographic spread, IP diversity, balance statistics, transaction type distributions
+- **Static features**: Account age, freeze history, customer demographics, branch characteristics, scheme codes
+- **Graph features**: NetworkX-based PageRank, HITS scores, betweenness centrality, Louvain community detection, clustering coefficients
+
+### Label Cleaning (label_cleaning.py)
+- Multi-round confident learning (Northcutt et al.) to detect mislabeled samples
+- Heuristic noise scoring targeting 7 known red herring categories
+- Sample weights in [0.2, 1.0] for noise-robust training
+
+### Model Training (models_v3.py)
+- **3-model ensemble**: LightGBM, XGBoost, CatBoost
+- **Frequency encoding** for categorical features (no label leakage)
+- **3-seed averaging** (seeds 42, 43, 44) x 5-fold stratified CV for stability
+- **Rank averaging** for ensemble combination
+- **Optuna** hyperparameter optimization with V2 params (near-zero regularization)
+- **SHAP** feature importance analysis
+
+### Temporal Windows (temporal.py)
+- Transaction-level analysis for accounts predicted as mules
+- Sliding window approach to identify suspicious activity periods
+- Outputs suspicious_start and suspicious_end timestamps
+
+### Key Results
+- **Public Phase AUC-ROC**: 0.968136 (V3 with V2 params)
+- **Private Phase AUC-ROC**: 0.955815
+
+## File Structure
 ```
-
-### Skip Optuna (use saved or default hyperparameters)
-```bash
-python run.py --skip-optuna
+config.py          - Paths, constants, logging
+features.py        - Feature engineering (4 passes, 208 features)
+label_cleaning.py  - Confident learning + heuristic noise detection
+models_v3.py       - Model training & inference (best version)
+temporal.py        - Temporal window prediction
+run_v3.py          - Pipeline orchestrator
+requirements.txt   - Python dependencies
+models/            - Trained model weights and hyperparameters
 ```
-
-### Re-run a specific stage
-```bash
-python run.py --skip-optuna --force-stage models
-python run.py --skip-optuna --force-stage temporal
-```
-
-### Standalone scripts
-```bash
-# Run Optuna for XGB/CB only (after initial pipeline run)
-python run_optuna_xgb_cb.py
-
-# Generate submission from saved fold models
-python gen_submission.py
-```
-
-## Pipeline Stages
-
-1. **Feature Engineering** (`features.py`) — 4 passes: transaction stats, geo/balance, static, graph → 192 features
-2. **Label Cleaning** (`label_cleaning.py`) — 2-round confident learning + heuristic noise scoring → sample weights
-3. **Model Training** (`models.py`) — Adversarial validation, LOO target encoding, LGB+XGB+CB ensemble, stacking, calibration
-4. **Temporal Windows** (`temporal.py`) — Vectorized sliding window anomaly scoring at 5 time scales
-5. **Submission** — CSV with `account_id, is_mule, suspicious_start, suspicious_end`
-
-Each stage saves checkpoint markers. Re-running safely skips completed stages.
-
-## Output
-
-The pipeline writes all artifacts to the output directory:
-
-```
-output/
-  submission.csv                  # Final submission (CSV — upload separately)
-  features/full_features.parquet  # Combined feature matrix
-  models/lgb_fold*.pkl           # Saved fold models
-  models/best_params.pkl         # Optuna hyperparameters
-  oof_predictions.csv            # Out-of-fold predictions
-  noise_analysis.csv             # Label noise scores
-  adversarial_validation.csv     # AV feature importance
-  shap_importance.csv            # SHAP feature ranking
-  suspicious_windows.parquet     # Temporal predictions
-```
-
-> **Note**: For the competition Code Submission (ZIP), include only source code (`.py`), this `README.md`, `requirements.txt`, and trained model weights (`.pkl` files from `output/models/`). Do **not** include `.parquet`, `.csv`, or other data files — these are prohibited per submission rules.
-
-## Submission Guidelines
-
-The competition has 4 submission phases:
-
-| Phase | Format | Limit |
-|-------|--------|-------|
-| Public | CSV (`account_id,is_mule,suspicious_start,suspicious_end`) | 100/day |
-| Private | Same CSV format | 10 total |
-| Code | Single ZIP archive (source + model weights + README) | 1 only |
-| Report | PDF document | 3 max |
-
-### Code ZIP Contents (allowed file types only)
-
-Include: `.py`, `.md`, `.txt`, `.pkl`, `.joblib`, `.json`, `.yaml`, `.yml`, `.toml`, `.cfg`, `.ini`, `.sh`, `.ipynb`, `.pt`, `.pth`, `.onnx`, `.h5`
-
-**Prohibited**: `.parquet`, `.csv`, `.hdf5`, `.npy`, `.npz`, `.feather` — no training data or dataset copies. Max 200 MB uncompressed.
-
-If model files cause the ZIP to exceed 200 MB, host them on GitHub and link in this README. Include code from earlier iterations if space permits, otherwise link to them.
-
-## File Descriptions
-
-| File | Description |
-|------|-------------|
-| `config.py` | Paths, constants, hyperparameters |
-| `features.py` | 4-pass feature engineering (192 features) |
-| `label_cleaning.py` | Confident learning + heuristic red herring detection |
-| `models.py` | Training pipeline: AV, target encoding, 3-model ensemble, stacking, calibration, SHAP |
-| `temporal.py` | Vectorized temporal window prediction |
-| `run.py` | Pipeline orchestrator with checkpointing |
-| `gen_submission.py` | Quick submission from saved models |
-| `run_optuna_xgb_cb.py` | Targeted Optuna HPO for XGB/CB |
-
-## Approach Summary
-
-- **192 features** across transaction stats, geolocation, balance trajectories, account/customer metadata, and network graph centrality
-- **Label noise handling**: 2-round confident learning + heuristic scoring for red herring avoidance
-- **3-model ensemble**: LightGBM (Optuna-tuned) + XGBoost + CatBoost with stacking meta-learner and isotonic calibration
-- **Temporal windows**: O(n) vectorized sliding window anomaly scoring using searchsorted + cumsum
-
-## Results
-
-- Calibrated AUC-ROC: **0.940**
-- Best F1: **0.756**
-- Predicted mules: 951 (p >= 0.3), 799 (p >= 0.5)
-- Temporal windows: 947 accounts
