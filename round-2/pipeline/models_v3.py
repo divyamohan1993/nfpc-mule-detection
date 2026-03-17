@@ -287,20 +287,25 @@ def train_and_predict(features, sample_weights=None, skip_optuna=False):
                 cb_best_params = saved["catboost"]
                 break
         else:
-            log.info("Using default hyperparameters (more regularized)")
+            log.info("Using Optuna-tuned params (produced 0.968 public AUC-ROC)")
             lgb_best_params = {
-                "learning_rate": 0.01, "max_depth": 6, "num_leaves": 31,
-                "min_child_samples": 50, "subsample": 0.7, "colsample_bytree": 0.6,
-                "reg_alpha": 1.0, "reg_lambda": 5.0, "min_split_gain": 0.1,
+                "learning_rate": 0.012764126206988488, "max_depth": 9, "num_leaves": 90,
+                "min_child_samples": 29, "subsample": 0.6783470637523714,
+                "colsample_bytree": 0.4521029644087456,
+                "reg_alpha": 4.008425217616203e-05, "reg_lambda": 8.218003694336784e-07,
             }
             xgb_best_params = {
-                "learning_rate": 0.01, "max_depth": 6, "min_child_weight": 20,
-                "subsample": 0.7, "colsample_bytree": 0.6,
-                "reg_alpha": 1.0, "reg_lambda": 5.0, "gamma": 1.0,
+                "learning_rate": 0.008238241106150611, "max_depth": 10,
+                "min_child_weight": 23, "subsample": 0.7998649262771572,
+                "colsample_bytree": 0.8312404495902853,
+                "reg_alpha": 5.326522604768556, "reg_lambda": 3.4273653512260496e-06,
+                "gamma": 1.5961853170702773,
             }
             cb_best_params = {
-                "learning_rate": 0.02, "depth": 6, "l2_leaf_reg": 5.0,
-                "bagging_temperature": 1.0, "random_strength": 1.0, "border_count": 128,
+                "learning_rate": 0.06488730142109825, "depth": 7,
+                "l2_leaf_reg": 0.0656072903445318,
+                "bagging_temperature": 1.6011729839492679,
+                "random_strength": 0.03273885955097987, "border_count": 247,
             }
 
     log.info("LGB params: %s", lgb_best_params)
