@@ -55,3 +55,12 @@ web/node_modules/
 # Phase 2 pipeline artifacts (large, regenerable)
 round-2/pipeline/output/
 round-2/pipeline/submission*.csv
+round-2/code_submission.zip
+round-2/report_b64.txt
+round-2/submissions/
+
+# Vercel
+.vercel
+
+# npm (pnpm is used)
+web/package-lock.json
