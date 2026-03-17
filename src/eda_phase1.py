@@ -18,8 +18,8 @@ warnings.filterwarnings('ignore')
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette("husl")
 
-DATA_DIR = r"r:/national-fraud-prevention-challenge/IITD-Tryst-Hackathon/EDA-Phase-1"
-OUT_DIR = r"r:/national-fraud-prevention-challenge/eda_output"
+DATA_DIR = os.environ.get("NFPC_P1_DATA_DIR", "data/EDA-Phase-1")
+OUT_DIR = os.environ.get("NFPC_P1_OUTPUT_DIR", "eda_output")
 PLOT_DIR = os.path.join(OUT_DIR, "plots")
 os.makedirs(PLOT_DIR, exist_ok=True)
 

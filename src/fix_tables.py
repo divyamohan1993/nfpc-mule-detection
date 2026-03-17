@@ -1,7 +1,7 @@
 """Fix table captions and remove --- rules from the markdown report."""
 import re
 
-with open('r:/national-fraud-prevention-challenge/NFPC_Phase1_EDA_Report.md', 'r', encoding='utf-8') as f:
+with open('reports/NFPC_Phase1_EDA_Report.md', 'r', encoding='utf-8') as f:
     content = f.read()
 
 # Remove any table captions from previous bad run
@@ -107,7 +107,7 @@ for line in lines:
 
 content = '\n'.join(output)
 
-with open('r:/national-fraud-prevention-challenge/NFPC_Phase1_EDA_Report.md', 'w', encoding='utf-8') as f:
+with open('reports/NFPC_Phase1_EDA_Report.md', 'w', encoding='utf-8') as f:
     f.write(content)
 
 total_tables = sum(table_count.values())

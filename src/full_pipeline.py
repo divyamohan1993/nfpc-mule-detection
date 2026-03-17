@@ -26,8 +26,8 @@ from collections import Counter
 warnings.filterwarnings('ignore')
 plt.style.use('seaborn-v0_8-whitegrid')
 
-DATA_DIR = "/home/DIVYA/nfpc/IITD-Tryst-Hackathon/EDA-Phase-1"
-OUT_DIR = "/home/DIVYA/nfpc/output"
+DATA_DIR = os.environ.get("NFPC_P1_DATA_DIR", "data/EDA-Phase-1")
+OUT_DIR = os.environ.get("NFPC_P1_OUTPUT_DIR", "output")
 PLOT_DIR = os.path.join(OUT_DIR, "plots")
 os.makedirs(PLOT_DIR, exist_ok=True)
 

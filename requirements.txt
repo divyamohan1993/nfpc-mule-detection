@@ -1,3 +1,7 @@
+# Phase 1 dependencies.
+# Phase 1 was NOT trained on the GCP VM. Exact training environment versions
+# are unknown, but outputs (predictions.csv, plots) are committed to the repo.
+# These versions are from the local dev machine and should produce near-identical results.
 pandas>=2.0
 numpy>=1.24
 matplotlib>=3.7
