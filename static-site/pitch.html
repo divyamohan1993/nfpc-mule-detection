@@ -11,8 +11,9 @@
 html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0a;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 a{color:#00d4aa;text-decoration:none}
 a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid #00d4aa;outline-offset:2px}
 
-.back-link{position:fixed;top:clamp(16px,3vh,28px);left:clamp(20px,4vw,40px);z-index:100;font-size:clamp(13px,1.4vw,16px);color:#888;transition:color .2s}
+.back-link{position:fixed;top:clamp(16px,3vh,28px);left:clamp(20px,4vw,40px);z-index:100;font-size:clamp(13px,1.4vw,16px);color:#9e9e9e;transition:color .2s}
 .back-link:hover{color:#f0f0f0;text-decoration:none}
 
 .slide-container{position:relative;width:100vw;height:100vh}
@@ -41,17 +42,17 @@ a:hover{text-decoration:underline}
 }
 
 .progress{position:fixed;bottom:0;left:0;height:2px;background:#00d4aa;z-index:100;transition:width .3s ease}
-.counter{position:fixed;bottom:clamp(10px,2vh,20px);right:clamp(20px,4vw,40px);z-index:100;font-size:clamp(12px,1.2vw,14px);color:#666;font-variant-numeric:tabular-nums}
+.counter{position:fixed;bottom:clamp(10px,2vh,20px);right:clamp(20px,4vw,40px);z-index:100;font-size:clamp(12px,1.2vw,14px);color:#9e9e9e;font-variant-numeric:tabular-nums}
 
 .accent{color:#00d4aa}
 .gradient-text{background:linear-gradient(135deg,#00d4aa,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 
-.badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border:1px solid rgba(0,212,170,.3);border-radius:999px;font-size:clamp(11px,1.2vw,14px);color:#00d4aa;margin-bottom:clamp(16px,3vh,32px);background:rgba(0,212,170,.06)}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border:1px solid rgba(0,212,170,.3);border-radius:999px;font-size:clamp(12px,1.2vw,14px);color:#00d4aa;margin-bottom:clamp(16px,3vh,32px);background:rgba(0,212,170,.06)}
 .badge-dot{width:8px;height:8px;border-radius:50%;background:#00d4aa;animation:pulse 2s ease-in-out infinite}
 
 .slide-title{font-size:clamp(28px,5vw,64px);font-weight:700;line-height:1.1;margin-bottom:clamp(12px,2vh,24px);letter-spacing:-.02em}
 .slide-subtitle{font-size:clamp(14px,1.8vw,22px);color:#aaa;line-height:1.5;max-width:700px}
-.slide-footer{font-size:clamp(12px,1.2vw,14px);color:#666;margin-top:auto;padding-top:clamp(16px,3vh,32px)}
+.slide-footer{font-size:clamp(12px,1.2vw,14px);color:#9e9e9e;margin-top:auto;padding-top:clamp(16px,3vh,32px)}
 
 .big-number{font-size:clamp(48px,10vw,120px);font-weight:800;color:#00d4aa;line-height:1;margin:clamp(8px,2vh,20px) 0}
 .big-label{font-size:clamp(14px,1.6vw,20px);color:#aaa;line-height:1.6;max-width:640px}
@@ -60,14 +61,14 @@ a:hover{text-decoration:underline}
 .pipeline-row{display:flex;align-items:center;gap:clamp(8px,2vw,24px);margin:clamp(16px,3vh,32px) 0;flex-wrap:wrap;justify-content:center}
 .metric-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:clamp(12px,2vh,24px) clamp(16px,2vw,32px);text-align:center;min-width:clamp(80px,12vw,140px)}
 .metric-box .val{font-size:clamp(24px,3.5vw,42px);font-weight:700;color:#00d4aa}
-.metric-box .lbl{font-size:clamp(10px,1vw,13px);color:#888;margin-top:4px}
+.metric-box .lbl{font-size:clamp(12px,1vw,13px);color:#9e9e9e;margin-top:4px}
 .arrow-sep{color:#333;font-size:clamp(16px,2vw,28px);flex-shrink:0}
 
 /* Cards grid */
 .cards-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:clamp(10px,1.5vw,20px);margin:clamp(12px,2vh,24px) 0}
 .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:clamp(14px,2vh,24px) clamp(16px,2vw,28px)}
 .card-title{font-size:clamp(13px,1.4vw,17px);font-weight:600;margin-bottom:6px;color:#f0f0f0}
-.card-text{font-size:clamp(11px,1.1vw,14px);color:#888;line-height:1.5}
+.card-text{font-size:clamp(12px,1.1vw,14px);color:#9e9e9e;line-height:1.5}
 
 /* GTM list */
 .gtm-list{list-style:none;margin:clamp(12px,2vh,24px) 0}
@@ -75,8 +76,8 @@ a:hover{text-decoration:underline}
 .gtm-list .num{font-size:clamp(18px,2.5vw,32px);font-weight:700;color:#00d4aa;flex-shrink:0;min-width:clamp(24px,3vw,40px)}
 
 /* Competition table */
-.comp-table{width:100%;border-collapse:collapse;margin:clamp(12px,2vh,24px) 0;font-size:clamp(11px,1.2vw,15px)}
-.comp-table th{text-align:left;color:#888;font-weight:500;padding:clamp(6px,1vh,12px) clamp(8px,1.5vw,16px);border-bottom:1px solid rgba(255,255,255,.1)}
+.comp-table{width:100%;border-collapse:collapse;margin:clamp(12px,2vh,24px) 0;font-size:clamp(12px,1.2vw,15px)}
+.comp-table th{text-align:left;color:#9e9e9e;font-weight:500;padding:clamp(6px,1vh,12px) clamp(8px,1.5vw,16px);border-bottom:1px solid rgba(255,255,255,.1)}
 .comp-table td{padding:clamp(8px,1.2vh,14px) clamp(8px,1.5vw,16px);border-bottom:1px solid rgba(255,255,255,.05);color:#ccc}
 .comp-table tr.highlight td{background:rgba(0,212,170,.1);color:#f0f0f0;font-weight:600}
 .comp-table tr.highlight td:first-child{border-radius:8px 0 0 8px}
@@ -88,14 +89,14 @@ a:hover{text-decoration:underline}
 .team-circle{width:clamp(56px,7vw,80px);height:clamp(56px,7vw,80px);border-radius:50%;background:rgba(0,212,170,.15);border:2px solid rgba(0,212,170,.3);display:flex;align-items:center;justify-content:center;margin:0 auto clamp(8px,1.5vh,16px);font-size:clamp(18px,2.5vw,28px);font-weight:700;color:#00d4aa}
 .team-circle.dim{opacity:.5;background:rgba(0,212,170,.08);border-color:rgba(0,212,170,.15)}
 .team-name{font-size:clamp(14px,1.5vw,18px);font-weight:600;margin-bottom:4px}
-.team-role{font-size:clamp(11px,1vw,13px);color:#888;line-height:1.4}
-.team-link{font-size:clamp(10px,.9vw,12px);color:#00d4aa;margin-top:4px;display:inline-block}
+.team-role{font-size:clamp(12px,1vw,13px);color:#9e9e9e;line-height:1.4}
+.team-link{font-size:12px;color:#00d4aa;margin-top:4px;display:inline-block}
 
 /* Metrics grid */
 .metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(10px,1.5vw,20px);margin:clamp(12px,2vh,24px) 0}
 .metric-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:clamp(14px,2vh,24px) clamp(12px,1.5vw,20px);text-align:center}
 .metric-card .mc-val{font-size:clamp(24px,3vw,40px);font-weight:700;color:#00d4aa}
-.metric-card .mc-lbl{font-size:clamp(10px,1vw,13px);color:#888;margin-top:4px}
+.metric-card .mc-lbl{font-size:clamp(12px,1vw,13px);color:#9e9e9e;margin-top:4px}
 
 /* Roadmap */
 .checklist{list-style:none;margin:clamp(12px,2vh,24px) 0}
@@ -120,7 +121,7 @@ a:hover{text-decoration:underline}
   .cards-grid{grid-template-columns:1fr}
   .metrics-grid{grid-template-columns:repeat(2,1fr)}
   .team-row{flex-direction:column;align-items:center}
-  .comp-table{font-size:11px}
+  .comp-table{font-size:12px}
 }
 
 @media(prefers-reduced-motion:reduce){
@@ -151,7 +152,7 @@ a:hover{text-decoration:underline}
     <h1 class="slide-title">Money Mules Are <span class="accent">Invisible</span></h1>
     <div class="big-number">200 Lakh Cr</div>
     <p class="big-label">processed through Indian payment systems in FY24 alone. Every undetected mule account is a breach in UPI, NEFT, RTGS integrity.</p>
-    <p class="big-label" style="margin-top:clamp(12px,2vh,24px);color:#888">Banks flag accounts after fraud. Rule-based systems catch only the obvious.</p>
+    <p class="big-label" style="margin-top:clamp(12px,2vh,24px);color:#9e9e9e">Banks flag accounts after fraud. Rule-based systems catch only the obvious.</p>
   </div>
 
   <!-- Slide 3: Value -->
