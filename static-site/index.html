@@ -1,0 +1,2512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mule Account Detection | NFPC - dmj.one</title>
+<meta name="description" content="ML system detecting money mule accounts across 160K accounts and 400M+ transactions. 208 features, 3-model ensemble, 0.968 AUC-ROC. RBIH x IIT Delhi.">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="canonical" href="https://dmj.one/projects/nfpc/">
+<link rel="icon" href="/favicon.ico" sizes="any">
+
+<!-- Open Graph -->
+<meta property="og:title" content="Mule Account Detection | NFPC">
+<meta property="og:description" content="0.968 AUC-ROC detecting money mule accounts in Indian banking. 208 features, 3-model ensemble (LightGBM + XGBoost + CatBoost), 160K accounts.">
+<meta property="og:url" content="https://dmj.one/projects/nfpc/">
+<meta property="og:site_name" content="dmj.one">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="en_IN">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mule Account Detection | NFPC">
+<meta name="twitter:description" content="0.968 AUC-ROC detecting money mule accounts across 160K accounts. 208 features, 3-model ensemble.">
+
+<!-- Google Fonts: Geist Sans & Geist Mono -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
+
+<style>
+/* ========== RESET & BASE ========== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #0a0a0a;
+  --surface-raised: #111111;
+  --surface-overlay: #1a1a1a;
+  --border: #222222;
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --accent: #00d4aa;
+  --accent-5: rgba(0, 212, 170, 0.05);
+  --accent-8: rgba(0, 212, 170, 0.08);
+  --accent-10: rgba(0, 212, 170, 0.1);
+  --accent-15: rgba(0, 212, 170, 0.15);
+  --accent-20: rgba(0, 212, 170, 0.2);
+  --accent-30: rgba(0, 212, 170, 0.3);
+  --accent-50: rgba(0, 212, 170, 0.5);
+  --danger: #ff4444;
+  --warning: #ffaa00;
+  --emerald-400: #34d399;
+  --font-sans: 'Geist', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+code {
+  font-family: var(--font-mono);
+}
+
+/* ========== ANIMATIONS ========== */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(0,212,170,0.15); }
+  50% { box-shadow: 0 0 40px rgba(0,212,170,0.25); }
+}
+
+@keyframes bar-fill {
+  from { width: 0; }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+.animate-on-scroll.visible {
+  animation: fade-up 0.6s ease-out forwards;
+}
+
+.animate-on-scroll.visible.stagger-1 { animation-delay: 100ms; }
+.animate-on-scroll.visible.stagger-2 { animation-delay: 200ms; }
+.animate-on-scroll.visible.stagger-3 { animation-delay: 300ms; }
+.animate-on-scroll.visible.stagger-4 { animation-delay: 400ms; }
+.animate-on-scroll.visible.stagger-5 { animation-delay: 500ms; }
+.animate-on-scroll.visible.stagger-6 { animation-delay: 600ms; }
+
+.pulse-dot {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.bar-animate {
+  animation: bar-fill 1s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-on-scroll {
+    opacity: 1;
+    transform: none;
+  }
+  html { scroll-behavior: auto; }
+}
+
+/* ========== LAYOUT ========== */
+.container {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+/* ========== NAV ========== */
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: 3.5rem;
+  border-bottom: 1px solid rgba(34, 34, 34, 0.5);
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.nav-inner {
+  max-width: 80rem;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+}
+
+@media (min-width: 640px) {
+  .nav-inner { padding: 0 1.5rem; }
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nav-icon {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: var(--accent-10);
+}
+
+.nav-icon svg {
+  height: 1rem;
+  width: 1rem;
+  color: var(--accent);
+}
+
+.nav-brand {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.nav-sub {
+  display: none;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+@media (min-width: 640px) {
+  .nav-sub { display: inline; }
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+@media (min-width: 640px) {
+  .nav-right { gap: 1.5rem; }
+}
+
+.nav-link {
+  display: none;
+  transition: color 0.2s;
+}
+
+.nav-link:hover { color: var(--accent); }
+
+@media (min-width: 640px) {
+  .nav-link.sm-show { display: inline; }
+}
+
+@media (min-width: 768px) {
+  .nav-link.md-show { display: inline; }
+}
+
+.nav-pitch {
+  display: inline-flex;
+  border-radius: 9999px;
+  border: 1px solid var(--accent-30);
+  padding: 0.25rem 0.75rem;
+  color: var(--accent);
+  transition: background 0.2s;
+}
+
+.nav-pitch:hover { background: var(--accent-10); }
+
+/* ========== HERO ========== */
+.hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 3.5rem 1rem 0;
+}
+
+@media (min-width: 640px) {
+  .hero { padding: 3.5rem 1.5rem 0; }
+}
+
+.hero-grid {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.hero-glow {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: 33%;
+  width: 800px;
+  height: 800px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--accent-5);
+  filter: blur(120px);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 10;
+  max-width: 56rem;
+  text-align: center;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  padding: 0.375rem 1rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.hero-badge-dot {
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.hero-title {
+  font-size: 2.25rem;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+@media (min-width: 640px) { .hero-title { font-size: 3rem; } }
+@media (min-width: 768px) { .hero-title { font-size: 4.5rem; } }
+@media (min-width: 1024px) { .hero-title { font-size: 6rem; } }
+
+.hero-gradient {
+  background: linear-gradient(to right, var(--accent), var(--emerald-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-subtitle {
+  margin-top: 1.5rem;
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+}
+
+@media (min-width: 640px) { .hero-subtitle { font-size: 1.25rem; } }
+
+.hero-tags {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.phase-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.phase-tag-inactive {
+  background: var(--surface-overlay);
+  color: #888;
+  border: 1px solid var(--border);
+}
+
+.phase-tag-active {
+  background: var(--accent-15);
+  color: var(--accent);
+  border: 1px solid var(--accent-30);
+}
+
+.phase-tag-dot {
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.hero-ctas {
+  margin-top: 2.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.btn-primary {
+  display: inline-flex;
+  height: 3rem;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  background: var(--accent);
+  padding: 0 2rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--bg);
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 30px rgba(0, 212, 170, 0.3);
+}
+
+.btn-primary:active { transform: scale(0.98); }
+
+.btn-primary svg {
+  height: 0.875rem;
+  width: 0.875rem;
+}
+
+.btn-outline {
+  display: inline-flex;
+  height: 3rem;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  padding: 0 2rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.btn-outline:hover {
+  border-color: #444;
+  color: var(--text-primary);
+}
+
+.btn-outline svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+.scroll-indicator {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: #444;
+}
+
+.scroll-indicator span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.scroll-indicator-line {
+  height: 2rem;
+  width: 1px;
+  background: linear-gradient(to bottom, #444, transparent);
+}
+
+/* ========== SECTIONS ========== */
+.section {
+  padding: 4rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .section { padding: 6rem 1.5rem; }
+}
+
+.section-bordered {
+  border-top: 1px solid rgba(34, 34, 34, 0.5);
+}
+
+.section-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.section-mono-label {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+}
+
+.section-title {
+  font-size: 1.875rem;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
+
+@media (min-width: 640px) { .section-title { font-size: 2.25rem; } }
+@media (min-width: 768px) { .section-title { font-size: 3rem; } }
+
+.section-subtitle {
+  margin-top: 1rem;
+  max-width: 36rem;
+  color: var(--text-secondary);
+}
+
+/* ========== STAT CARDS ========== */
+.stats-grid {
+  margin-top: 3rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 640px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.stat-card {
+  position: relative;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  padding: 1.5rem;
+  transition: all 0.3s;
+}
+
+.stat-card:hover {
+  border-color: var(--accent-30);
+  box-shadow: 0 0 30px var(--accent-8);
+}
+
+.stat-value {
+  font-size: 2.25rem;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  color: var(--accent);
+}
+
+@media (min-width: 640px) { .stat-value { font-size: 3rem; } }
+
+.stat-label {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.stat-sub {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ========== TABLES ========== */
+.table-wrap {
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+}
+
+.table-wrap table {
+  font-size: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .table-wrap table { font-size: 0.875rem; }
+}
+
+.table-wrap thead tr {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.table-wrap th {
+  padding: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-align: left;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .table-wrap th { padding: 1rem 1.5rem; }
+}
+
+.table-wrap th.text-right { text-align: right; }
+.table-wrap th.text-center { text-align: center; }
+
+.table-wrap td {
+  padding: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .table-wrap td { padding: 1rem 1.5rem; }
+}
+
+.table-wrap td.text-right { text-align: right; }
+.table-wrap td.text-center { text-align: center; }
+
+.table-wrap td.font-mono { font-family: var(--font-mono); }
+
+.table-wrap tbody tr {
+  transition: background 0.15s;
+}
+
+.table-wrap tbody tr:hover {
+  background: rgba(26, 26, 26, 0.5);
+}
+
+.table-wrap tbody tr.row-border {
+  border-bottom: 1px solid rgba(34, 34, 34, 0.5);
+}
+
+.table-wrap tbody tr.row-highlight {
+  background: var(--accent-5);
+}
+
+/* ========== SUBSECTION HEADERS ========== */
+.subsection-title {
+  margin-bottom: 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.subsection {
+  margin-top: 4rem;
+}
+
+.subsection-desc {
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+/* ========== FEATURE CATEGORY CARDS ========== */
+.feat-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) { .feat-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .feat-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.feat-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  padding: 1.25rem;
+  transition: border-color 0.2s;
+}
+
+.feat-card:hover { border-color: var(--accent-20); }
+
+.feat-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.feat-card-value {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--accent);
+}
+
+.feat-card-pass {
+  border-radius: 9999px;
+  background: var(--accent-10);
+  padding: 0.125rem 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.feat-card-label {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+/* ========== INFO BOXES ========== */
+.info-box {
+  margin-top: 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  padding: 1rem;
+}
+
+.info-box p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.info-box .info-label {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.warning-box {
+  margin-top: 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 170, 0, 0.3);
+  background: rgba(255, 170, 0, 0.05);
+  padding: 1rem;
+}
+
+.warning-box p {
+  font-size: 0.875rem;
+  color: #ccc;
+}
+
+.warning-box .warning-label {
+  font-weight: 700;
+  color: var(--warning);
+}
+
+/* ========== ARCHETYPE CARDS ========== */
+.archetype-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) { .archetype-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .archetype-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.archetype-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  padding: 1.5rem;
+  transition: all 0.3s;
+}
+
+.archetype-card:hover {
+  border-color: var(--accent-30);
+  box-shadow: 0 0 20px var(--accent-5);
+}
+
+.archetype-icon {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: var(--accent-10);
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+  transition: background 0.2s;
+}
+
+.archetype-card:hover .archetype-icon {
+  background: var(--accent-20);
+}
+
+.archetype-icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.archetype-name {
+  font-weight: 700;
+}
+
+.archetype-desc {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.625;
+  color: var(--text-secondary);
+}
+
+/* ========== BADGES ========== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+@media (min-width: 640px) {
+  .badge { font-size: 0.75rem; padding: 0.125rem 0.625rem; }
+}
+
+.badge-green {
+  background: var(--accent-10);
+  color: var(--accent);
+}
+
+.badge-red {
+  background: rgba(255, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.badge-accent {
+  background: var(--accent-10);
+  color: var(--accent);
+}
+
+/* ========== HIDDEN ON MOBILE ========== */
+.hidden-mobile {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .hidden-mobile { display: table-cell; }
+}
+
+/* ========== LABEL CLEANING CARDS ========== */
+.label-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .label-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.label-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  padding: 1.5rem;
+}
+
+.label-card-title {
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.label-card-desc {
+  font-size: 0.875rem;
+  line-height: 1.625;
+  color: var(--text-secondary);
+}
+
+/* ========== INFRASTRUCTURE CARDS ========== */
+.infra-grid {
+  margin-top: 4rem;
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) { .infra-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .infra-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.infra-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.infra-val {
+  font-size: 1.125rem;
+  font-weight: 900;
+  color: var(--accent);
+}
+
+.infra-label {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.infra-sub {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ========== FEATURE BARS ========== */
+.feature-bars-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .feature-bars-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.feature-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.feature-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.feature-bar-row:hover .feature-bar-label { color: var(--accent); }
+
+.feature-rank {
+  width: 1.5rem;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.feature-bar-info {
+  flex: 1;
+}
+
+.feature-bar-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.feature-bar-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.feature-bar-code {
+  display: none;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+@media (min-width: 640px) {
+  .feature-bar-code { display: inline; }
+}
+
+.feature-bar-track {
+  height: 0.5rem;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--surface-overlay);
+}
+
+.feature-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(to right, var(--accent-50), var(--accent));
+  transition: width 0.3s;
+}
+
+/* ========== PATTERNS GRID ========== */
+.patterns-grid {
+  margin-top: 3rem;
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) { .patterns-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .patterns-grid { grid-template-columns: repeat(3, 1fr); } }
+
+.pattern-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  padding: 1.5rem;
+  transition: all 0.3s;
+}
+
+.pattern-card:hover {
+  border-color: var(--accent-30);
+  box-shadow: 0 0 20px var(--accent-5);
+}
+
+.pattern-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.pattern-icon {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: var(--accent-10);
+  color: var(--accent);
+  transition: background 0.2s;
+}
+
+.pattern-card:hover .pattern-icon {
+  background: var(--accent-20);
+}
+
+.pattern-icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.pattern-number {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.pattern-name {
+  font-weight: 700;
+}
+
+.pattern-desc {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.625;
+  color: var(--text-secondary);
+}
+
+/* ========== VISUALIZATIONS ========== */
+.viz-buttons {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.viz-grid {
+  margin-top: 3rem;
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) { .viz-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .viz-grid { grid-template-columns: repeat(3, 1fr); } }
+
+.viz-card {
+  cursor: zoom-in;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  text-align: left;
+  transition: border-color 0.2s;
+}
+
+.viz-card:hover { border-color: var(--accent-20); }
+
+.viz-card-img {
+  position: relative;
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  background: white;
+}
+
+.viz-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 0.5rem;
+  transition: transform 0.3s;
+}
+
+.viz-card:hover .viz-card-img img {
+  transform: scale(1.02);
+}
+
+.viz-card-label {
+  border-top: 1px solid rgba(34, 34, 34, 0.5);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+@media (min-width: 640px) {
+  .viz-card-label { padding: 0.75rem 1rem; font-size: 0.875rem; }
+}
+
+.viz-note {
+  margin-top: 2rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.viz-note a {
+  color: var(--accent);
+  transition: text-decoration 0.2s;
+}
+
+.viz-note a:hover { text-decoration: underline; }
+
+/* ========== LIGHTBOX ========== */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.lightbox-close {
+  position: absolute;
+  right: 0.75rem;
+  top: 0.75rem;
+  z-index: 10;
+  display: flex;
+  height: 3rem;
+  width: 3rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  transition: background 0.2s;
+}
+
+@media (min-width: 640px) {
+  .lightbox-close { right: 1rem; top: 1rem; }
+}
+
+.lightbox-close:hover { background: rgba(255, 255, 255, 0.2); }
+
+.lightbox-close svg, .lightbox-nav svg {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 10;
+  display: flex;
+  height: 3rem;
+  width: 3rem;
+  transform: translateY(-50%);
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  transition: background 0.2s;
+}
+
+.lightbox-nav:hover { background: rgba(255, 255, 255, 0.2); }
+
+.lightbox-prev { left: 0.5rem; }
+.lightbox-next { right: 0.5rem; }
+
+@media (min-width: 640px) {
+  .lightbox-prev { left: 1rem; }
+  .lightbox-next { right: 1rem; }
+}
+
+.lightbox-img-wrap {
+  margin: 3.5rem 0.5rem;
+  max-height: 85vh;
+  max-width: 96vw;
+}
+
+@media (min-width: 640px) {
+  .lightbox-img-wrap { margin: 4rem 2rem; max-width: 90vw; }
+}
+
+@media (min-width: 1024px) {
+  .lightbox-img-wrap { margin: 4rem; }
+}
+
+.lightbox-img-wrap img {
+  max-height: 85vh;
+  width: auto;
+  border-radius: 0.5rem;
+  object-fit: contain;
+}
+
+.lightbox-info {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+@media (min-width: 640px) { .lightbox-info { bottom: 1rem; } }
+
+.lightbox-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: white;
+}
+
+@media (min-width: 640px) { .lightbox-label { font-size: 0.875rem; } }
+
+.lightbox-counter {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========== HOW IT WORKS ========== */
+.steps-grid {
+  margin-top: 3rem;
+  display: grid;
+  gap: 2rem;
+}
+
+@media (min-width: 1024px) { .steps-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.step-item {
+  position: relative;
+  padding-left: 4rem;
+}
+
+.step-number {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  height: 3rem;
+  width: 3rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  border: 1px solid var(--accent-30);
+  background: var(--accent-5);
+  font-size: 1.125rem;
+  font-weight: 900;
+  color: var(--accent);
+}
+
+.step-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.step-desc {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.625;
+  color: var(--text-secondary);
+}
+
+/* ========== TECH CATEGORIES ========== */
+.tech-grid {
+  margin-top: 4rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 640px) { .tech-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .tech-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.tech-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  padding: 1.5rem;
+}
+
+.tech-card-title {
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.tech-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tech-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.tech-list li::before {
+  content: '';
+  display: inline-block;
+  height: 0.25rem;
+  width: 0.25rem;
+  border-radius: 50%;
+  background: var(--accent-50);
+  flex-shrink: 0;
+}
+
+/* ========== FOOTER ========== */
+.footer {
+  border-top: 1px solid rgba(34, 34, 34, 0.5);
+  padding: 2.5rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .footer { padding: 4rem 1.5rem; }
+}
+
+.footer-inner {
+  max-width: 80rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .footer-inner { flex-direction: row; }
+}
+
+.footer-brand {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.footer-sub {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.footer-links a {
+  transition: color 0.2s;
+}
+
+.footer-links a:hover { color: var(--accent); }
+
+/* ========== RED FLAG TABLE COLORS ========== */
+.text-danger { color: var(--danger); }
+.text-accent { color: var(--accent); }
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+.font-bold { font-weight: 700; }
+.font-medium { font-weight: 500; }
+.font-mono { font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+
+<!-- ==================== NAV ==================== -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-left">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <span class="nav-brand">NFPC</span>
+      <span class="nav-sub">Mule Detection</span>
+    </div>
+    <div class="nav-right">
+      <a href="#phase2" class="nav-link sm-show">Phase 2</a>
+      <a href="#phase1" class="nav-link sm-show">Phase 1</a>
+      <a href="#patterns" class="nav-link md-show">Patterns</a>
+      <a href="#visualizations" class="nav-link md-show">Viz</a>
+      <a href="pitch.html" class="nav-pitch">Pitch</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ==================== HERO ==================== -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span class="hero-badge-dot pulse-dot"></span>
+      RBIH x IIT Delhi TRYST 2025
+    </div>
+
+    <h1 class="hero-title">
+      Catching <span class="hero-gradient">Money Mules</span>
+    </h1>
+
+    <p class="hero-subtitle">
+      Machine learning system detecting fraudulent intermediary accounts across
+      160K accounts and 400M+ transactions. 208 engineered features.
+      3-model ensemble. Two competition phases.
+    </p>
+
+    <div class="hero-tags">
+      <span class="phase-tag phase-tag-inactive">Phase 1: EDA + Modeling</span>
+      <span class="phase-tag phase-tag-active">
+        <span class="phase-tag-dot pulse-dot"></span>
+        Phase 2: Production Pipeline
+      </span>
+    </div>
+
+    <div class="hero-ctas">
+      <a href="#phase2" class="btn-primary">
+        Phase 2 Results
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 8h14M8 1l7 7-7 7"/>
+        </svg>
+      </a>
+      <a href="https://github.com/divyamohan1993/nfpc-mule-detection" target="_blank" rel="noopener noreferrer" class="btn-outline">
+        <svg viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+
+  <div class="scroll-indicator">
+    <span>Scroll</span>
+    <div class="scroll-indicator-line"></div>
+  </div>
+</section>
+
+<!-- ==================== PHASE 2 ==================== -->
+<section id="phase2" class="section">
+  <div class="container">
+    <div class="section-header-row animate-on-scroll">
+      <span class="section-mono-label">Phase 2</span>
+      <span class="phase-tag phase-tag-active">
+        <span class="phase-tag-dot pulse-dot"></span>
+        Production Pipeline
+      </span>
+    </div>
+    <h2 class="section-title animate-on-scroll">Competition Results</h2>
+    <p class="section-subtitle animate-on-scroll">
+      3-model gradient-boosted tree ensemble (LightGBM + XGBoost + CatBoost) with rank averaging,
+      trained on 208 features across 160K accounts and ~400M transactions (16 GB).
+    </p>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card animate-on-scroll stagger-1">
+        <div class="stat-value">0.968</div>
+        <div class="stat-label">Public AUC-ROC</div>
+        <div class="stat-sub">Leaderboard rank #37</div>
+      </div>
+      <div class="stat-card animate-on-scroll stagger-2">
+        <div class="stat-value">0.956</div>
+        <div class="stat-label">Private AUC-ROC</div>
+        <div class="stat-sub">Hidden test set</div>
+      </div>
+      <div class="stat-card animate-on-scroll stagger-3">
+        <div class="stat-value">208</div>
+        <div class="stat-label">Engineered Features</div>
+        <div class="stat-sub">4 computation passes</div>
+      </div>
+      <div class="stat-card animate-on-scroll stagger-4">
+        <div class="stat-value">160K</div>
+        <div class="stat-label">Accounts Analyzed</div>
+        <div class="stat-sub">~400M transactions</div>
+      </div>
+    </div>
+
+    <!-- 3-Model Ensemble -->
+    <div class="subsection animate-on-scroll">
+      <h3 class="subsection-title">3-Model Ensemble</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th class="text-right">Training</th>
+              <th class="text-right">Ensemble Method</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-border">
+              <td class="font-medium">LightGBM</td>
+              <td class="text-right font-mono text-secondary">3-seed x 5-fold CV</td>
+              <td class="text-right font-mono text-secondary">Rank Averaging</td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">XGBoost</td>
+              <td class="text-right font-mono text-secondary">3-seed x 5-fold CV</td>
+              <td class="text-right font-mono text-secondary">Rank Averaging</td>
+            </tr>
+            <tr>
+              <td class="font-medium">CatBoost</td>
+              <td class="text-right font-mono text-secondary">3-seed x 5-fold CV</td>
+              <td class="text-right font-mono text-secondary">Rank Averaging</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Feature Engineering -->
+    <div class="subsection animate-on-scroll">
+      <h3 class="subsection-title">Feature Engineering (208 Features)</h3>
+      <p class="subsection-desc">Computed in 4 passes over the 16 GB dataset using memory-efficient batch processing.</p>
+      <div class="feat-grid">
+        <div class="feat-card">
+          <div class="feat-card-header">
+            <span class="feat-card-value">~100</span>
+            <span class="feat-card-pass">Pass 1</span>
+          </div>
+          <div class="feat-card-label">Transaction Core</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-card-header">
+            <span class="feat-card-value">~40</span>
+            <span class="feat-card-pass">Pass 2</span>
+          </div>
+          <div class="feat-card-label">Transaction Extended</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-card-header">
+            <span class="feat-card-value">~35</span>
+            <span class="feat-card-pass">Pass 3</span>
+          </div>
+          <div class="feat-card-label">Static Account</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-card-header">
+            <span class="feat-card-value">~33</span>
+            <span class="feat-card-pass">Pass 4</span>
+          </div>
+          <div class="feat-card-label">Graph / Network</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Experiment Log -->
+    <div class="subsection animate-on-scroll">
+      <h3 class="subsection-title">Experiment Log</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Experiment</th>
+              <th class="text-right">Public AUC</th>
+              <th>Outcome</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-border">
+              <td class="font-medium">V1: Baseline (LGB+XGB+CB)</td>
+              <td class="text-right font-mono">0.956</td>
+              <td class="text-secondary">Solid starting point with target encoding</td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">V2: Optuna HPO (100 trials/model)</td>
+              <td class="text-right font-mono">0.956</td>
+              <td class="text-secondary">Found optimal near-zero regularization</td>
+            </tr>
+            <tr class="row-border row-highlight">
+              <td class="font-bold text-accent">V3: Freq encoding + rank avg + multi-seed</td>
+              <td class="text-right font-mono font-bold text-accent">0.968</td>
+              <td class="text-secondary">Best. Eliminated leakage, improved stability</td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">V5: Feature interactions (26 derived)</td>
+              <td class="text-right font-mono">0.963</td>
+              <td class="text-secondary">Hurt. Trees discover interactions internally</td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">V6: Pseudo-labeling (2-stage)</td>
+              <td class="text-right font-mono">0.787</td>
+              <td class="text-secondary">Catastrophic. Diluted mule signal from 2.8% to 1.8%</td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">V7: Drop all branch features</td>
+              <td class="text-right font-mono">0.959</td>
+              <td class="text-secondary">Fixed RH7 but destroyed overall AUC</td>
+            </tr>
+            <tr>
+              <td class="font-medium">V8: Surgical branch_code drop</td>
+              <td class="text-right font-mono">0.958</td>
+              <td class="text-secondary">Precise RH7 fix, still too much AUC loss</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="warning-box">
+        <p><span class="warning-label">Key Lesson:</span> With near-zero regularization and powerful tree models, the simplest feature set produces the best generalization. Feature engineering quality matters more than model complexity.</p>
+      </div>
+    </div>
+
+    <!-- Mule Behavioral Archetypes -->
+    <div class="subsection animate-on-scroll">
+      <h3 class="subsection-title">Mule Behavioral Archetypes</h3>
+      <div class="archetype-grid">
+        <div class="archetype-card">
+          <div class="archetype-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h4 class="archetype-name">Pass-Through</h4>
+          <p class="archetype-desc">High velocity credits followed by rapid debits, minimal balance retention</p>
+        </div>
+        <div class="archetype-card">
+          <div class="archetype-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M6 12H2m15.07-7.07l-2.83 2.83M9.76 14.24l-2.83 2.83m0-10.14l2.83 2.83m4.48 4.48l2.83 2.83" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h4 class="archetype-name">Network Hub</h4>
+          <p class="archetype-desc">High fan-in/fan-out with many unique counterparties acting as intermediary</p>
+        </div>
+        <div class="archetype-card">
+          <div class="archetype-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h4 class="archetype-name">Dormant-Burst</h4>
+          <p class="archetype-desc">Long inactivity followed by sudden intense transaction bursts</p>
+        </div>
+        <div class="archetype-card">
+          <div class="archetype-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 3v18h18M7 16l4-4 4 4 6-6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h4 class="archetype-name">Structuring</h4>
+          <p class="archetype-desc">Deliberately fragmenting amounts below monitoring thresholds</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Red Herring Analysis -->
+    <div class="subsection animate-on-scroll">
+      <h3 class="subsection-title">Red Herring Analysis</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="text-center">RH</th>
+              <th>Description</th>
+              <th class="hidden-mobile">Detection Method</th>
+              <th class="text-right">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-border">
+              <td class="text-center font-mono text-muted">#1</td>
+              <td class="font-medium">Routine investigation false positives</td>
+              <td class="hidden-mobile text-secondary">Heuristic noise weight 0.6</td>
+              <td class="text-right"><span class="badge badge-green">0.995</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="text-center font-mono text-muted">#2</td>
+              <td class="font-medium">Missing alert_reason</td>
+              <td class="hidden-mobile text-secondary">Heuristic noise weight 0.8</td>
+              <td class="text-right"><span class="badge badge-green">0.990</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="text-center font-mono text-muted">#3</td>
+              <td class="font-medium">Future mule_flag_date</td>
+              <td class="hidden-mobile text-secondary">Dates after Jun 2025 downweighted</td>
+              <td class="text-right"><span class="badge badge-green">0.993</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="text-center font-mono text-muted">#4</td>
+              <td class="font-medium">Very old flag dates</td>
+              <td class="hidden-mobile text-secondary">Dates before Jul 2020 downweighted</td>
+              <td class="text-right"><span class="badge badge-green">0.978</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="text-center font-mono text-muted">#5</td>
+              <td class="font-medium">Boundary date artifacts</td>
+              <td class="hidden-mobile text-secondary">Exact boundary dates flagged</td>
+              <td class="text-right"><span class="badge badge-green">0.993</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="text-center font-mono text-muted">#6</td>
+              <td class="font-medium">Frozen accounts as mules</td>
+              <td class="hidden-mobile text-secondary">Null flagged_by_branch detected</td>
+              <td class="text-right"><span class="badge badge-green">0.999</span></td>
+            </tr>
+            <tr>
+              <td class="text-center font-mono text-muted">#7</td>
+              <td class="font-medium">Flagged by own branch</td>
+              <td class="hidden-mobile text-secondary">Branch features carry signal + noise</td>
+              <td class="text-right"><span class="badge badge-red">0.000</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="info-box">
+        <p><span class="info-label">RH7 Analysis:</span> Branch features carry genuine discriminative signal. Removing all branch features achieves RH7=1.000 but drops AUC from 0.968 to 0.959. The surgical V8 approach (drop only branch_code encodings) balances the tradeoff.</p>
+      </div>
+    </div>
+
+    <!-- Label Cleaning Strategy -->
+    <div class="subsection animate-on-scroll">
+      <h3 class="subsection-title">Label Cleaning Strategy</h3>
+      <div class="label-grid">
+        <div class="label-card">
+          <h4 class="label-card-title">Confident Learning</h4>
+          <p class="label-card-desc">2 rounds of out-of-fold LightGBM probability estimation with per-class thresholds (Northcutt et al. 2021). Identifies label noise.</p>
+        </div>
+        <div class="label-card">
+          <h4 class="label-card-title">Heuristic Noise Scoring</h4>
+          <p class="label-card-desc">Rule-based detection targeting 7 red herring categories. Assigns noise scores based on metadata signals.</p>
+        </div>
+        <div class="label-card">
+          <h4 class="label-card-title">Combined Weights</h4>
+          <p class="label-card-desc">max(CL score, heuristic score) mapped to sample weights in [0.2, 1.0]. Downweights noisy labels without discarding data.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Infrastructure -->
+    <div class="infra-grid animate-on-scroll">
+      <div class="infra-card">
+        <div class="infra-val">GCP n2-highmem-8</div>
+        <div class="infra-label">Compute</div>
+        <div class="infra-sub">8 vCPU, 64GB RAM</div>
+      </div>
+      <div class="infra-card">
+        <div class="infra-val">~12 min</div>
+        <div class="infra-label">Training Time</div>
+        <div class="infra-sub">3-seed x 5-fold CV</div>
+      </div>
+      <div class="infra-card">
+        <div class="infra-val">~10 min</div>
+        <div class="infra-label">Feature Engineering</div>
+        <div class="infra-sub">208 features, 160K accounts</div>
+      </div>
+      <div class="infra-card">
+        <div class="infra-val">16 GB</div>
+        <div class="infra-label">Dataset Size</div>
+        <div class="infra-sub">~400M transactions</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== PHASE 1 ==================== -->
+<section id="phase1" class="section section-bordered">
+  <div class="container">
+    <div class="section-header-row animate-on-scroll">
+      <span class="section-mono-label">Phase 1</span>
+      <span class="phase-tag phase-tag-inactive">EDA + Initial Modeling</span>
+    </div>
+    <h2 class="section-title animate-on-scroll">Exploration &amp; Discovery</h2>
+    <p class="section-subtitle animate-on-scroll">
+      Deep EDA on 24K accounts with 7.4M transactions. LightGBM + XGBoost
+      ensemble with 125 features achieving 0.985 OOF AUC-ROC.
+    </p>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card animate-on-scroll stagger-1">
+        <div class="stat-value">0.985</div>
+        <div class="stat-label">OOF AUC-ROC</div>
+        <div class="stat-sub">LightGBM + XGBoost ensemble</div>
+      </div>
+      <div class="stat-card animate-on-scroll stagger-2">
+        <div class="stat-value">125</div>
+        <div class="stat-label">Engineered Features</div>
+        <div class="stat-sub">13 categories</div>
+      </div>
+      <div class="stat-card animate-on-scroll stagger-3">
+        <div class="stat-value">12/12</div>
+        <div class="stat-label">Mule Patterns Found</div>
+        <div class="stat-sub">All validated statistically</div>
+      </div>
+      <div class="stat-card animate-on-scroll stagger-4">
+        <div class="stat-value">1:90</div>
+        <div class="stat-label">Class Imbalance</div>
+        <div class="stat-sub">263 mules / 23,760 legitimate</div>
+      </div>
+    </div>
+
+    <!-- Model Comparison -->
+    <div class="subsection animate-on-scroll">
+      <h3 class="subsection-title">Model Comparison</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th class="text-right">OOF AUC-ROC</th>
+              <th class="text-right">Mean Fold AUC</th>
+              <th class="text-right">Std Dev</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-border">
+              <td class="font-medium">LightGBM</td>
+              <td class="text-right font-mono">0.9834</td>
+              <td class="text-right font-mono">0.9831</td>
+              <td class="text-right font-mono text-muted">&plusmn;0.0058</td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">XGBoost</td>
+              <td class="text-right font-mono">0.9789</td>
+              <td class="text-right font-mono">0.9785</td>
+              <td class="text-right font-mono text-muted">&plusmn;0.0067</td>
+            </tr>
+            <tr>
+              <td class="font-bold text-accent">Ensemble</td>
+              <td class="text-right font-mono font-bold text-accent">0.9851</td>
+              <td class="text-right font-mono text-muted">-</td>
+              <td class="text-right font-mono text-muted">-</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Red Flags -->
+    <div class="subsection animate-on-scroll">
+      <h3 class="subsection-title">Red Flags: Mule vs Legitimate</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Signal</th>
+              <th class="text-right">Legitimate</th>
+              <th class="text-right">Mule</th>
+              <th class="text-right">Multiplier</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-border">
+              <td class="font-medium">Accounts Frozen</td>
+              <td class="text-right font-mono text-secondary">3.0%</td>
+              <td class="text-right font-mono text-danger">58.9%</td>
+              <td class="text-right"><span class="badge badge-accent">19.6x</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">MCC 6051 (Wire Transfer)</td>
+              <td class="text-right font-mono text-secondary">0.12%</td>
+              <td class="text-right font-mono text-danger">2.10%</td>
+              <td class="text-right"><span class="badge badge-accent">18x</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">Post-Mobile Txn Value</td>
+              <td class="text-right font-mono text-secondary">127K</td>
+              <td class="text-right font-mono text-danger">903K</td>
+              <td class="text-right"><span class="badge badge-accent">7.1x</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">Txn-to-Balance Ratio</td>
+              <td class="text-right font-mono text-secondary">68.5</td>
+              <td class="text-right font-mono text-danger">473.9</td>
+              <td class="text-right"><span class="badge badge-accent">6.9x</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">Near-50K Structuring</td>
+              <td class="text-right font-mono text-secondary">1.1%</td>
+              <td class="text-right font-mono text-danger">5.9%</td>
+              <td class="text-right"><span class="badge badge-accent">5.3x</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">Median Txn Velocity</td>
+              <td class="text-right font-mono text-secondary">336.8h</td>
+              <td class="text-right font-mono text-danger">78.3h</td>
+              <td class="text-right"><span class="badge badge-accent">4.3x faster</span></td>
+            </tr>
+            <tr class="row-border">
+              <td class="font-medium">Unique Counterparties</td>
+              <td class="text-right font-mono text-secondary">13.7</td>
+              <td class="text-right font-mono text-danger">37.1</td>
+              <td class="text-right"><span class="badge badge-accent">2.7x</span></td>
+            </tr>
+            <tr>
+              <td class="font-medium">Pass-Through Ratio</td>
+              <td class="text-right font-mono text-secondary">1.184</td>
+              <td class="text-right font-mono text-danger">1.015</td>
+              <td class="text-right"><span class="badge badge-accent">~1:1</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Top 10 Features -->
+    <div class="subsection animate-on-scroll">
+      <h3 class="subsection-title">Top 10 Features (Phase 1 SHAP)</h3>
+      <div class="feature-bars-grid">
+        <div class="feature-col">
+          <div class="feature-bar-row">
+            <span class="feature-rank">1</span>
+            <div class="feature-bar-info">
+              <div class="feature-bar-top">
+                <span class="feature-bar-label">Wire Transfer Rate</span>
+                <code class="feature-bar-code">mcc_6051_rate</code>
+              </div>
+              <div class="feature-bar-track">
+                <div class="feature-bar-fill bar-animate" style="width:100%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="feature-bar-row">
+            <span class="feature-rank">2</span>
+            <div class="feature-bar-info">
+              <div class="feature-bar-top">
+                <span class="feature-bar-label">Account Freeze History</span>
+                <code class="feature-bar-code">was_frozen</code>
+              </div>
+              <div class="feature-bar-track">
+                <div class="feature-bar-fill bar-animate" style="width:38.2%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="feature-bar-row">
+            <span class="feature-rank">3</span>
+            <div class="feature-bar-info">
+              <div class="feature-bar-top">
+                <span class="feature-bar-label">UPI Debit Rate</span>
+                <code class="feature-bar-code">ch_UPD_rate</code>
+              </div>
+              <div class="feature-bar-track">
+                <div class="feature-bar-fill bar-animate" style="width:12.3%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="feature-bar-row">
+            <span class="feature-rank">4</span>
+            <div class="feature-bar-info">
+              <div class="feature-bar-top">
+                <span class="feature-bar-label">Counterparties/Txn</span>
+                <code class="feature-bar-code">cp_per_txn</code>
+              </div>
+              <div class="feature-bar-track">
+                <div class="feature-bar-fill bar-animate" style="width:11.1%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="feature-bar-row">
+            <span class="feature-rank">5</span>
+            <div class="feature-bar-info">
+              <div class="feature-bar-top">
+                <span class="feature-bar-label">KYC Recency</span>
+                <code class="feature-bar-code">days_since_kyc</code>
+              </div>
+              <div class="feature-bar-track">
+                <div class="feature-bar-fill bar-animate" style="width:11%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="feature-col">
+          <div class="feature-bar-row">
+            <span class="feature-rank">6</span>
+            <div class="feature-bar-info">
+              <div class="feature-bar-top">
+                <span class="feature-bar-label">Pawn Shop Rate</span>
+                <code class="feature-bar-code">mcc_5933_rate</code>
+              </div>
+              <div class="feature-bar-track">
+                <div class="feature-bar-fill bar-animate" style="width:10.4%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="feature-bar-row">
+            <span class="feature-rank">7</span>
+            <div class="feature-bar-info">
+              <div class="feature-bar-top">
+                <span class="feature-bar-label">P25 Amount</span>
+                <code class="feature-bar-code">p25_amount</code>
+              </div>
+              <div class="feature-bar-track">
+                <div class="feature-bar-fill bar-animate" style="width:9%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="feature-bar-row">
+            <span class="feature-rank">8</span>
+            <div class="feature-bar-info">
+              <div class="feature-bar-top">
+                <span class="feature-bar-label">Cheque Rate</span>
+                <code class="feature-bar-code">ch_CHQ_rate</code>
+              </div>
+              <div class="feature-bar-track">
+                <div class="feature-bar-fill bar-animate" style="width:7.4%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="feature-bar-row">
+            <span class="feature-rank">9</span>
+            <div class="feature-bar-info">
+              <div class="feature-bar-top">
+                <span class="feature-bar-label">Relationship Tenure</span>
+                <code class="feature-bar-code">rel_years</code>
+              </div>
+              <div class="feature-bar-track">
+                <div class="feature-bar-fill bar-animate" style="width:5.7%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="feature-bar-row">
+            <span class="feature-rank">10</span>
+            <div class="feature-bar-info">
+              <div class="feature-bar-top">
+                <span class="feature-bar-label">ATM Withdrawal Rate</span>
+                <code class="feature-bar-code">ch_ATW_rate</code>
+              </div>
+              <div class="feature-bar-track">
+                <div class="feature-bar-fill bar-animate" style="width:4.9%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== PATTERNS ==================== -->
+<section id="patterns" class="section section-bordered">
+  <div class="container">
+    <div class="section-mono-label animate-on-scroll">Behavioral Analysis</div>
+    <h2 class="section-title animate-on-scroll">12 Mule Patterns</h2>
+    <p class="section-subtitle animate-on-scroll">
+      All 12 known mule behavior patterns from the RBIH challenge
+      specification were identified and validated with statistical evidence.
+    </p>
+
+    <div class="patterns-grid">
+      <!-- 1 -->
+      <div class="pattern-card animate-on-scroll stagger-1">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="pattern-number">#1</span>
+        </div>
+        <h3 class="pattern-name">Dormant Activation</h3>
+        <p class="pattern-desc">Inactive accounts suddenly process high-value bursts</p>
+      </div>
+      <!-- 2 -->
+      <div class="pattern-card animate-on-scroll stagger-2">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18M7 16l4-4 4 4 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="pattern-number">#2</span>
+        </div>
+        <h3 class="pattern-name">Structuring</h3>
+        <p class="pattern-desc">Transactions just below the 50K INR reporting threshold</p>
+      </div>
+      <!-- 3 -->
+      <div class="pattern-card animate-on-scroll stagger-3">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="pattern-number">#3</span>
+        </div>
+        <h3 class="pattern-name">Rapid Pass-Through</h3>
+        <p class="pattern-desc">Near 1:1 credit-to-debit ratio, money flows through untouched</p>
+      </div>
+      <!-- 4 -->
+      <div class="pattern-card animate-on-scroll stagger-4">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M6 12H2m15.07-7.07l-2.83 2.83M9.76 14.24l-2.83 2.83m0-10.14l2.83 2.83m4.48 4.48l2.83 2.83" stroke-linecap="round"/></svg>
+          </div>
+          <span class="pattern-number">#4</span>
+        </div>
+        <h3 class="pattern-name">Fan-In / Fan-Out</h3>
+        <p class="pattern-desc">Many-to-one or one-to-many fund flows reveal network topology</p>
+      </div>
+      <!-- 5 -->
+      <div class="pattern-card animate-on-scroll stagger-5">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+          </div>
+          <span class="pattern-number">#5</span>
+        </div>
+        <h3 class="pattern-name">Geographic Anomaly</h3>
+        <p class="pattern-desc">PIN code mismatches across customer, branch, and address</p>
+      </div>
+      <!-- 6 -->
+      <div class="pattern-card animate-on-scroll stagger-6">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v20M2 12h20" stroke-linecap="round"/><path d="M12 2l4 4M12 2L8 6" stroke-linecap="round"/></svg>
+          </div>
+          <span class="pattern-number">#6</span>
+        </div>
+        <h3 class="pattern-name">New Account High Value</h3>
+        <p class="pattern-desc">Young accounts with disproportionate transaction volume</p>
+      </div>
+      <!-- 7 -->
+      <div class="pattern-card animate-on-scroll stagger-1">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="pattern-number">#7</span>
+        </div>
+        <h3 class="pattern-name">Income Mismatch</h3>
+        <p class="pattern-desc">Transaction values vastly exceed account balance patterns</p>
+      </div>
+      <!-- 8 -->
+      <div class="pattern-card animate-on-scroll stagger-2">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01" stroke-linecap="round"/></svg>
+          </div>
+          <span class="pattern-number">#8</span>
+        </div>
+        <h3 class="pattern-name">Post-Mobile-Change Spike</h3>
+        <p class="pattern-desc">Activity surges 7x after mobile number update</p>
+      </div>
+      <!-- 9 -->
+      <div class="pattern-card animate-on-scroll stagger-3">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8" stroke-linecap="round"/></svg>
+          </div>
+          <span class="pattern-number">#9</span>
+        </div>
+        <h3 class="pattern-name">Round Amount Patterns</h3>
+        <p class="pattern-desc">Overuse of exact round amounts (1K, 5K, 10K, 50K)</p>
+      </div>
+      <!-- 10 -->
+      <div class="pattern-card animate-on-scroll stagger-4">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="pattern-number">#10</span>
+        </div>
+        <h3 class="pattern-name">Layered / Subtle</h3>
+        <p class="pattern-desc">Weak multi-signal combinations that evade single-rule detection</p>
+      </div>
+      <!-- 11 -->
+      <div class="pattern-card animate-on-scroll stagger-5">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18" stroke-linecap="round"/></svg>
+          </div>
+          <span class="pattern-number">#11</span>
+        </div>
+        <h3 class="pattern-name">Salary Cycle Exploitation</h3>
+        <p class="pattern-desc">Laundering timed to coincide with salary credit windows</p>
+      </div>
+      <!-- 12 -->
+      <div class="pattern-card animate-on-scroll stagger-6">
+        <div class="pattern-card-header">
+          <div class="pattern-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="pattern-number">#12</span>
+        </div>
+        <h3 class="pattern-name">Branch-Level Collusion</h3>
+        <p class="pattern-desc">Suspicious account clusters originating from the same branch</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== VISUALIZATIONS ==================== -->
+<section id="visualizations" class="section section-bordered">
+  <div class="container">
+    <div class="section-mono-label animate-on-scroll">Exploratory Data Analysis</div>
+    <h2 class="section-title animate-on-scroll">25 Visualizations</h2>
+    <p class="section-subtitle animate-on-scroll">
+      47 statistical tables, 25 analytical plots, and a full written report
+      covering every aspect of mule account behavior.
+    </p>
+
+    <div class="viz-buttons animate-on-scroll">
+      <a href="https://github.com/divyamohan1993/nfpc-mule-detection/blob/main/reports/NFPC_Phase1_EDA_Report.md" target="_blank" rel="noopener noreferrer" class="btn-primary">
+        <svg viewBox="0 0 20 20" fill="currentColor" style="height:1rem;width:1rem">
+          <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/>
+        </svg>
+        Read Full EDA Report
+      </a>
+      <a href="https://github.com/divyamohan1993/nfpc-mule-detection/tree/main/reports" target="_blank" rel="noopener noreferrer" class="btn-outline">
+        View on GitHub
+      </a>
+    </div>
+
+    <div class="viz-grid animate-on-scroll" id="gallery">
+      <button type="button" class="viz-card" data-index="0">
+        <div class="viz-card-img"><img src="https://cdn.dmj.one/projects/nfpc/plots/18_model_evaluation.png" alt="ROC &amp; PR Curves" loading="lazy"></div>
+        <div class="viz-card-label">ROC &amp; PR Curves</div>
+      </button>
+      <button type="button" class="viz-card" data-index="1">
+        <div class="viz-card-img"><img src="https://cdn.dmj.one/projects/nfpc/plots/19_shap_summary.png" alt="SHAP Summary" loading="lazy"></div>
+        <div class="viz-card-label">SHAP Summary</div>
+      </button>
+      <button type="button" class="viz-card" data-index="2">
+        <div class="viz-card-img"><img src="https://cdn.dmj.one/projects/nfpc/plots/11_structuring.png" alt="Structuring Detection" loading="lazy"></div>
+        <div class="viz-card-label">Structuring Detection</div>
+      </button>
+      <button type="button" class="viz-card" data-index="3">
+        <div class="viz-card-img"><img src="https://cdn.dmj.one/projects/nfpc/plots/23_network_topology.png" alt="Network Topology" loading="lazy"></div>
+        <div class="viz-card-label">Network Topology</div>
+      </button>
+      <button type="button" class="viz-card" data-index="4">
+        <div class="viz-card-img"><img src="https://cdn.dmj.one/projects/nfpc/plots/15_velocity.png" alt="Transaction Velocity" loading="lazy"></div>
+        <div class="viz-card-label">Transaction Velocity</div>
+      </button>
+      <button type="button" class="viz-card" data-index="5">
+        <div class="viz-card-img"><img src="https://cdn.dmj.one/projects/nfpc/plots/25_cost_sensitive_matrix.png" alt="Cost-Sensitive Matrix" loading="lazy"></div>
+        <div class="viz-card-label">Cost-Sensitive Matrix</div>
+      </button>
+    </div>
+
+    <p class="viz-note animate-on-scroll">
+      Showing 6 of 25 visualizations.
+      <a href="https://github.com/divyamohan1993/nfpc-mule-detection/blob/main/reports/NFPC_Phase1_EDA_Report.md" target="_blank" rel="noopener noreferrer">Full report</a>
+      includes class distribution, channel analysis, temporal patterns, geographic analysis, and more.
+    </p>
+  </div>
+</section>
+
+<!-- ==================== HOW IT WORKS ==================== -->
+<section class="section section-bordered">
+  <div class="container">
+    <div class="section-mono-label animate-on-scroll">Methodology</div>
+    <h2 class="section-title animate-on-scroll">How It Works</h2>
+
+    <div class="steps-grid animate-on-scroll">
+      <div class="step-item">
+        <div class="step-number">01</div>
+        <h3 class="step-title">Data Ingestion</h3>
+        <p class="step-desc">160K accounts, 400M+ transactions spanning July 2020 - June 2025. Memory-efficient batch processing over 16 GB Parquet dataset.</p>
+      </div>
+      <div class="step-item">
+        <div class="step-number">02</div>
+        <h3 class="step-title">Feature Engineering</h3>
+        <p class="step-desc">208 features in 4 passes: transaction core, extended patterns, static account metadata, and graph/network metrics (PageRank, Louvain, betweenness).</p>
+      </div>
+      <div class="step-item">
+        <div class="step-number">03</div>
+        <h3 class="step-title">Label Cleaning</h3>
+        <p class="step-desc">2-round confident learning + heuristic noise scoring for 7 red herring categories. Sample weights in [0.2, 1.0].</p>
+      </div>
+      <div class="step-item">
+        <div class="step-number">04</div>
+        <h3 class="step-title">Model Training</h3>
+        <p class="step-desc">LightGBM + XGBoost + CatBoost ensemble with 3-seed x 5-fold CV, rank averaging, Optuna HPO. Frequency encoding to prevent leakage.</p>
+      </div>
+    </div>
+
+    <div class="tech-grid animate-on-scroll">
+      <div class="tech-card">
+        <h4 class="tech-card-title">Statistical Methods</h4>
+        <ul class="tech-list">
+          <li>Confident Learning</li>
+          <li>Kolmogorov-Smirnov</li>
+          <li>SHAP TreeExplainer</li>
+          <li>Bonferroni correction</li>
+        </ul>
+      </div>
+      <div class="tech-card">
+        <h4 class="tech-card-title">ML Models</h4>
+        <ul class="tech-list">
+          <li>LightGBM (GBDT)</li>
+          <li>XGBoost</li>
+          <li>CatBoost</li>
+          <li>Rank Averaging Ensemble</li>
+        </ul>
+      </div>
+      <div class="tech-card">
+        <h4 class="tech-card-title">Graph / Network</h4>
+        <ul class="tech-list">
+          <li>PageRank &amp; HITS</li>
+          <li>Louvain Communities</li>
+          <li>Betweenness Centrality</li>
+          <li>Clustering Coefficients</li>
+        </ul>
+      </div>
+      <div class="tech-card">
+        <h4 class="tech-card-title">Tech Stack</h4>
+        <ul class="tech-list">
+          <li>Python 3.10+</li>
+          <li>Pandas / NumPy / NetworkX</li>
+          <li>Optuna HPO</li>
+          <li>GCP n2-highmem-8</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== FOOTER ==================== -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div>
+      <div class="footer-brand">NFPC Mule Account Detection</div>
+      <div class="footer-sub">Divya Mohan &amp; Kumkum Thakur &middot; Team dmj.one &middot; RBIH x IIT Delhi TRYST 2025</div>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/divyamohan1993/nfpc-mule-detection" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href="pitch.html">Pitch Deck</a>
+      <a href="https://dmj.one" target="_blank" rel="noopener noreferrer">dmj.one</a>
+      <span>MIT License</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ==================== LIGHTBOX OVERLAY (hidden by default) ==================== -->
+<div id="lightbox" class="lightbox-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Image viewer">
+  <button class="lightbox-close" aria-label="Close" id="lb-close">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M18 6L6 18M6 6l12 12"/>
+    </svg>
+  </button>
+  <button class="lightbox-nav lightbox-prev" aria-label="Previous image" id="lb-prev">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 18l-6-6 6-6"/>
+    </svg>
+  </button>
+  <button class="lightbox-nav lightbox-next" aria-label="Next image" id="lb-next">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 18l6-6-6-6"/>
+    </svg>
+  </button>
+  <div class="lightbox-img-wrap">
+    <img id="lb-img" src="" alt="">
+  </div>
+  <div class="lightbox-info">
+    <div class="lightbox-label" id="lb-label"></div>
+    <div class="lightbox-counter" id="lb-counter"></div>
+  </div>
+</div>
+
+<!-- ==================== JAVASCRIPT ==================== -->
+<script>
+(function() {
+  'use strict';
+
+  // ===== Scroll Animations (IntersectionObserver) =====
+  var animEls = document.querySelectorAll('.animate-on-scroll');
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    animEls.forEach(function(el) { observer.observe(el); });
+  } else {
+    // Fallback: just show everything
+    animEls.forEach(function(el) { el.classList.add('visible'); });
+  }
+
+  // ===== Feature Bar Animations =====
+  var barEls = document.querySelectorAll('.feature-bar-fill');
+  if ('IntersectionObserver' in window) {
+    var barObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('bar-animate');
+          barObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.3 });
+    barEls.forEach(function(el) { barObserver.observe(el); });
+  }
+
+  // ===== Lightbox =====
+  var images = [
+    { src: 'https://cdn.dmj.one/projects/nfpc/plots/18_model_evaluation.png', alt: 'ROC & PR Curves' },
+    { src: 'https://cdn.dmj.one/projects/nfpc/plots/19_shap_summary.png', alt: 'SHAP Summary' },
+    { src: 'https://cdn.dmj.one/projects/nfpc/plots/11_structuring.png', alt: 'Structuring Detection' },
+    { src: 'https://cdn.dmj.one/projects/nfpc/plots/23_network_topology.png', alt: 'Network Topology' },
+    { src: 'https://cdn.dmj.one/projects/nfpc/plots/15_velocity.png', alt: 'Transaction Velocity' },
+    { src: 'https://cdn.dmj.one/projects/nfpc/plots/25_cost_sensitive_matrix.png', alt: 'Cost-Sensitive Matrix' }
+  ];
+
+  var lightbox = document.getElementById('lightbox');
+  var lbImg = document.getElementById('lb-img');
+  var lbLabel = document.getElementById('lb-label');
+  var lbCounter = document.getElementById('lb-counter');
+  var lbClose = document.getElementById('lb-close');
+  var lbPrev = document.getElementById('lb-prev');
+  var lbNext = document.getElementById('lb-next');
+  var currentIdx = 0;
+  var touchStartX = 0;
+
+  function openLightbox(idx) {
+    currentIdx = idx;
+    updateLightbox();
+    lightbox.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    lightbox.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function updateLightbox() {
+    lbImg.src = images[currentIdx].src;
+    lbImg.alt = images[currentIdx].alt;
+    lbLabel.textContent = images[currentIdx].alt;
+    lbCounter.textContent = (currentIdx + 1) + ' / ' + images.length;
+  }
+
+  function prevImage() {
+    currentIdx = currentIdx > 0 ? currentIdx - 1 : images.length - 1;
+    updateLightbox();
+  }
+
+  function nextImage() {
+    currentIdx = currentIdx < images.length - 1 ? currentIdx + 1 : 0;
+    updateLightbox();
+  }
+
+  // Gallery click handlers
+  var cards = document.querySelectorAll('#gallery .viz-card');
+  cards.forEach(function(card) {
+    card.addEventListener('click', function() {
+      var idx = parseInt(card.getAttribute('data-index'), 10);
+      openLightbox(idx);
+    });
+  });
+
+  // Lightbox controls
+  lbClose.addEventListener('click', closeLightbox);
+  lbPrev.addEventListener('click', function(e) { e.stopPropagation(); prevImage(); });
+  lbNext.addEventListener('click', function(e) { e.stopPropagation(); nextImage(); });
+
+  // Click outside image to close
+  lightbox.addEventListener('click', function(e) {
+    if (e.target === lightbox) closeLightbox();
+  });
+
+  // Keyboard navigation
+  document.addEventListener('keydown', function(e) {
+    if (lightbox.style.display === 'none') return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') prevImage();
+    if (e.key === 'ArrowRight') nextImage();
+  });
+
+  // Touch swipe
+  lightbox.addEventListener('touchstart', function(e) {
+    touchStartX = e.touches[0].clientX;
+  }, { passive: true });
+
+  lightbox.addEventListener('touchend', function(e) {
+    var dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) {
+      if (dx < 0) nextImage();
+      else prevImage();
+    }
+  });
+})();
+</script>
+</body>
+</html>

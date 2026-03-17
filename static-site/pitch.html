@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mule Account Detection - Pitch | dmj.one</title>
+<meta name="description" content="0.968 AUC-ROC detecting money mule accounts across 160K accounts. 208 features, 3-model ensemble.">
+<meta name="theme-color" content="#0a0a0a">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0a;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+a{color:#00d4aa;text-decoration:none}
+a:hover{text-decoration:underline}
+
+.back-link{position:fixed;top:clamp(16px,3vh,28px);left:clamp(20px,4vw,40px);z-index:100;font-size:clamp(13px,1.4vw,16px);color:#888;transition:color .2s}
+.back-link:hover{color:#f0f0f0;text-decoration:none}
+
+.slide-container{position:relative;width:100vw;height:100vh}
+
+.slide{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;padding:8vh 10vw;opacity:0;pointer-events:none;transition:opacity .3s ease}
+.slide.active{opacity:1;pointer-events:auto}
+
+.slide.active > *{animation:fadeUp .45s ease both}
+.slide.active > *:nth-child(1){animation-delay:0ms}
+.slide.active > *:nth-child(2){animation-delay:80ms}
+.slide.active > *:nth-child(3){animation-delay:160ms}
+.slide.active > *:nth-child(4){animation-delay:240ms}
+.slide.active > *:nth-child(5){animation-delay:320ms}
+.slide.active > *:nth-child(6){animation-delay:400ms}
+.slide.active > *:nth-child(7){animation-delay:480ms}
+.slide.active > *:nth-child(8){animation-delay:560ms}
+
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(12px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+@keyframes pulse{
+  0%,100%{opacity:1}
+  50%{opacity:.4}
+}
+
+.progress{position:fixed;bottom:0;left:0;height:2px;background:#00d4aa;z-index:100;transition:width .3s ease}
+.counter{position:fixed;bottom:clamp(10px,2vh,20px);right:clamp(20px,4vw,40px);z-index:100;font-size:clamp(12px,1.2vw,14px);color:#666;font-variant-numeric:tabular-nums}
+
+.accent{color:#00d4aa}
+.gradient-text{background:linear-gradient(135deg,#00d4aa,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+
+.badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border:1px solid rgba(0,212,170,.3);border-radius:999px;font-size:clamp(11px,1.2vw,14px);color:#00d4aa;margin-bottom:clamp(16px,3vh,32px);background:rgba(0,212,170,.06)}
+.badge-dot{width:8px;height:8px;border-radius:50%;background:#00d4aa;animation:pulse 2s ease-in-out infinite}
+
+.slide-title{font-size:clamp(28px,5vw,64px);font-weight:700;line-height:1.1;margin-bottom:clamp(12px,2vh,24px);letter-spacing:-.02em}
+.slide-subtitle{font-size:clamp(14px,1.8vw,22px);color:#aaa;line-height:1.5;max-width:700px}
+.slide-footer{font-size:clamp(12px,1.2vw,14px);color:#666;margin-top:auto;padding-top:clamp(16px,3vh,32px)}
+
+.big-number{font-size:clamp(48px,10vw,120px);font-weight:800;color:#00d4aa;line-height:1;margin:clamp(8px,2vh,20px) 0}
+.big-label{font-size:clamp(14px,1.6vw,20px);color:#aaa;line-height:1.6;max-width:640px}
+
+/* Pipeline metrics */
+.pipeline-row{display:flex;align-items:center;gap:clamp(8px,2vw,24px);margin:clamp(16px,3vh,32px) 0;flex-wrap:wrap;justify-content:center}
+.metric-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:clamp(12px,2vh,24px) clamp(16px,2vw,32px);text-align:center;min-width:clamp(80px,12vw,140px)}
+.metric-box .val{font-size:clamp(24px,3.5vw,42px);font-weight:700;color:#00d4aa}
+.metric-box .lbl{font-size:clamp(10px,1vw,13px);color:#888;margin-top:4px}
+.arrow-sep{color:#333;font-size:clamp(16px,2vw,28px);flex-shrink:0}
+
+/* Cards grid */
+.cards-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:clamp(10px,1.5vw,20px);margin:clamp(12px,2vh,24px) 0}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:clamp(14px,2vh,24px) clamp(16px,2vw,28px)}
+.card-title{font-size:clamp(13px,1.4vw,17px);font-weight:600;margin-bottom:6px;color:#f0f0f0}
+.card-text{font-size:clamp(11px,1.1vw,14px);color:#888;line-height:1.5}
+
+/* GTM list */
+.gtm-list{list-style:none;margin:clamp(12px,2vh,24px) 0}
+.gtm-list li{display:flex;gap:clamp(10px,1.5vw,18px);align-items:baseline;margin-bottom:clamp(12px,2vh,22px);font-size:clamp(13px,1.5vw,18px);color:#ccc;line-height:1.5}
+.gtm-list .num{font-size:clamp(18px,2.5vw,32px);font-weight:700;color:#00d4aa;flex-shrink:0;min-width:clamp(24px,3vw,40px)}
+
+/* Competition table */
+.comp-table{width:100%;border-collapse:collapse;margin:clamp(12px,2vh,24px) 0;font-size:clamp(11px,1.2vw,15px)}
+.comp-table th{text-align:left;color:#888;font-weight:500;padding:clamp(6px,1vh,12px) clamp(8px,1.5vw,16px);border-bottom:1px solid rgba(255,255,255,.1)}
+.comp-table td{padding:clamp(8px,1.2vh,14px) clamp(8px,1.5vw,16px);border-bottom:1px solid rgba(255,255,255,.05);color:#ccc}
+.comp-table tr.highlight td{background:rgba(0,212,170,.1);color:#f0f0f0;font-weight:600}
+.comp-table tr.highlight td:first-child{border-radius:8px 0 0 8px}
+.comp-table tr.highlight td:last-child{border-radius:0 8px 8px 0}
+
+/* Team */
+.team-row{display:flex;gap:clamp(16px,3vw,40px);margin:clamp(12px,2vh,24px) 0;flex-wrap:wrap;justify-content:center}
+.team-member{text-align:center;flex:1;min-width:clamp(120px,18vw,200px);max-width:260px}
+.team-circle{width:clamp(56px,7vw,80px);height:clamp(56px,7vw,80px);border-radius:50%;background:rgba(0,212,170,.15);border:2px solid rgba(0,212,170,.3);display:flex;align-items:center;justify-content:center;margin:0 auto clamp(8px,1.5vh,16px);font-size:clamp(18px,2.5vw,28px);font-weight:700;color:#00d4aa}
+.team-circle.dim{opacity:.5;background:rgba(0,212,170,.08);border-color:rgba(0,212,170,.15)}
+.team-name{font-size:clamp(14px,1.5vw,18px);font-weight:600;margin-bottom:4px}
+.team-role{font-size:clamp(11px,1vw,13px);color:#888;line-height:1.4}
+.team-link{font-size:clamp(10px,.9vw,12px);color:#00d4aa;margin-top:4px;display:inline-block}
+
+/* Metrics grid */
+.metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(10px,1.5vw,20px);margin:clamp(12px,2vh,24px) 0}
+.metric-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:clamp(14px,2vh,24px) clamp(12px,1.5vw,20px);text-align:center}
+.metric-card .mc-val{font-size:clamp(24px,3vw,40px);font-weight:700;color:#00d4aa}
+.metric-card .mc-lbl{font-size:clamp(10px,1vw,13px);color:#888;margin-top:4px}
+
+/* Roadmap */
+.checklist{list-style:none;margin:clamp(12px,2vh,24px) 0}
+.checklist li{font-size:clamp(13px,1.4vw,17px);color:#ccc;line-height:1.6;margin-bottom:clamp(6px,1vh,12px);display:flex;align-items:baseline;gap:clamp(8px,1vw,14px)}
+.checklist .done{color:#00d4aa;flex-shrink:0}
+.checklist .todo{color:#555;flex-shrink:0}
+
+.btn-row{display:flex;gap:clamp(10px,1.5vw,16px);margin-top:clamp(16px,3vh,32px);flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;padding:clamp(10px,1.4vh,14px) clamp(20px,2.5vw,32px);border-radius:8px;font-size:clamp(13px,1.3vw,16px);font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none}
+.btn:hover{text-decoration:none}
+.btn-primary{background:#00d4aa;color:#0a0a0a}
+.btn-primary:hover{background:#00e6b8;transform:translateY(-1px)}
+.btn-outline{background:transparent;color:#f0f0f0;border:1px solid rgba(255,255,255,.2)}
+.btn-outline:hover{border-color:rgba(255,255,255,.5);transform:translateY(-1px)}
+
+/* Responsive */
+@media(max-width:768px){
+  .slide{padding:6vh 6vw}
+  .pipeline-row{flex-direction:column;align-items:stretch}
+  .pipeline-row .metric-box{width:100%}
+  .arrow-sep{display:none}
+  .cards-grid{grid-template-columns:1fr}
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+  .team-row{flex-direction:column;align-items:center}
+  .comp-table{font-size:11px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .slide,.progress{transition:none}
+  .slide.active > *{animation:none}
+  .badge-dot{animation:none}
+}
+</style>
+</head>
+<body>
+
+<a href="./" class="back-link">&larr; Back</a>
+<div class="progress" id="progress"></div>
+<div class="counter" id="counter"></div>
+
+<div class="slide-container" id="deck">
+
+  <!-- Slide 1: Title -->
+  <div class="slide" data-slide="1">
+    <div class="badge"><span class="badge-dot"></span>National Fraud Prevention Challenge</div>
+    <h1 class="slide-title">Catching <span class="gradient-text">Money Mules</span></h1>
+    <p class="slide-subtitle">ML-powered detection of fraudulent intermediary accounts across 160K accounts and 400M+ transactions</p>
+    <p class="slide-footer">Divya Mohan &amp; Kumkum Thakur &middot; Team dmj.one &middot; <a href="https://github.com/divyamohan1993/nfpc-mule-detection" target="_blank" rel="noopener">github.com/divyamohan1993/nfpc-mule-detection</a></p>
+  </div>
+
+  <!-- Slide 2: Problem -->
+  <div class="slide" data-slide="2">
+    <h1 class="slide-title">Money Mules Are <span class="accent">Invisible</span></h1>
+    <div class="big-number">200 Lakh Cr</div>
+    <p class="big-label">processed through Indian payment systems in FY24 alone. Every undetected mule account is a breach in UPI, NEFT, RTGS integrity.</p>
+    <p class="big-label" style="margin-top:clamp(12px,2vh,24px);color:#888">Banks flag accounts after fraud. Rule-based systems catch only the obvious.</p>
+  </div>
+
+  <!-- Slide 3: Value -->
+  <div class="slide" data-slide="3">
+    <h1 class="slide-title">Detect Before the <span class="accent">Damage</span></h1>
+    <div class="big-number">0.968 AUC</div>
+    <p class="big-label">Our 3-model ensemble (LightGBM + XGBoost + CatBoost) detects mule accounts with 0.968 Public AUC-ROC across 160K accounts. 208 features, rank averaging, multi-seed CV. Phase 1 achieved 0.985 OOF AUC on 24K accounts.</p>
+  </div>
+
+  <!-- Slide 4: Pipeline -->
+  <div class="slide" data-slide="4">
+    <h1 class="slide-title">The <span class="accent">Pipeline</span></h1>
+    <div class="pipeline-row">
+      <div class="metric-box"><div class="val">400M+</div><div class="lbl">Transactions Ingested</div></div>
+      <span class="arrow-sep">&rarr;</span>
+      <div class="metric-box"><div class="val">208</div><div class="lbl">Features Engineered</div></div>
+      <span class="arrow-sep">&rarr;</span>
+      <div class="metric-box"><div class="val">3</div><div class="lbl">Models Ensembled</div></div>
+      <span class="arrow-sep">&rarr;</span>
+      <div class="metric-box"><div class="val">0.968</div><div class="lbl">Public AUC-ROC</div></div>
+    </div>
+    <p class="big-label">4 feature passes: transaction core, extended patterns, static account metadata, and graph/network metrics (PageRank, Louvain, betweenness centrality).</p>
+  </div>
+
+  <!-- Slide 5: Business Model -->
+  <div class="slide" data-slide="5">
+    <h1 class="slide-title">Who <span class="accent">Benefits</span></h1>
+    <div class="cards-grid">
+      <div class="card">
+        <div class="card-title">Banks &amp; NBFCs</div>
+        <div class="card-text">Pre-flag suspicious accounts before losses</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Regulators (RBI/FIU-IND)</div>
+        <div class="card-text">Strengthen STR framework, PMLA compliance</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Payment Processors</div>
+        <div class="card-text">Risk scoring for UPI/NEFT/RTGS flows</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Insurance/Fintech</div>
+        <div class="card-text">KYC enhancement, onboarding risk</div>
+      </div>
+    </div>
+    <p class="slide-footer">API-based risk scoring — per-account inference, batch or real-time.</p>
+  </div>
+
+  <!-- Slide 6: GTM -->
+  <div class="slide" data-slide="6">
+    <h1 class="slide-title">Reaching <span class="accent">Users</span></h1>
+    <ol class="gtm-list">
+      <li><span class="num">1</span><span>RBIH network — direct access to Indian banking ecosystem</span></li>
+      <li><span class="num">2</span><span>Open-source model + paper — academic validation, community trust</span></li>
+      <li><span class="num">3</span><span>Regulatory sandbox — pilot with 2-3 banks under RBI oversight</span></li>
+      <li><span class="num">4</span><span>Integration SDKs — drop-in for existing AML/KYC platforms</span></li>
+    </ol>
+  </div>
+
+  <!-- Slide 7: Competition -->
+  <div class="slide" data-slide="7">
+    <h1 class="slide-title"><span class="accent">Landscape</span></h1>
+    <table class="comp-table">
+      <thead>
+        <tr><th>Approach</th><th>Accuracy</th><th>Patterns</th><th>Explainable</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Rule-based (threshold)</td><td>Low</td><td>2-3</td><td>Yes</td></tr>
+        <tr><td>Single ML model</td><td>~0.95</td><td>Implicit</td><td>Partial</td></tr>
+        <tr class="highlight"><td>Ours (3-model ensemble)</td><td>0.968</td><td>12/12</td><td>Full SHAP</td></tr>
+      </tbody>
+    </table>
+    <p class="slide-footer">Structural advantage: interpretability + accuracy. Not a black box.</p>
+  </div>
+
+  <!-- Slide 8: Team -->
+  <div class="slide" data-slide="8">
+    <h1 class="slide-title">Built By</h1>
+    <div class="team-row">
+      <div class="team-member">
+        <div class="team-circle">DM</div>
+        <div class="team-name">Divya Mohan</div>
+        <div class="team-role">Vision, Architecture, Feature Engineering, Analysis</div>
+        <a href="https://github.com/divyamohan1993" target="_blank" rel="noopener" class="team-link">github.com/divyamohan1993</a>
+      </div>
+      <div class="team-member">
+        <div class="team-circle">KT</div>
+        <div class="team-name">Kumkum Thakur</div>
+        <div class="team-role">Data Science Guidance, Domain Expertise, Analysis</div>
+        <a href="https://github.com/kumkum-thakur" target="_blank" rel="noopener" class="team-link">github.com/kumkum-thakur</a>
+      </div>
+      <div class="team-member">
+        <div class="team-circle dim">CO</div>
+        <div class="team-name">Claude Opus</div>
+        <div class="team-role">AI Co-Architect &amp; Build Partner (Anthropic)</div>
+      </div>
+    </div>
+    <p class="slide-footer">Team dmj.one &middot; RBIH x IIT Delhi TRYST 2025</p>
+  </div>
+
+  <!-- Slide 9: Metrics -->
+  <div class="slide" data-slide="9">
+    <h1 class="slide-title">Real <span class="accent">Numbers</span></h1>
+    <div class="metrics-grid">
+      <div class="metric-card"><div class="mc-val">0.968</div><div class="mc-lbl">Public AUC-ROC</div></div>
+      <div class="metric-card"><div class="mc-val">208</div><div class="mc-lbl">Features</div></div>
+      <div class="metric-card"><div class="mc-val">160K</div><div class="mc-lbl">Accounts</div></div>
+      <div class="metric-card"><div class="mc-val">400M+</div><div class="mc-lbl">Transactions</div></div>
+      <div class="metric-card"><div class="mc-val">3x5x3</div><div class="mc-lbl">Model x Fold x Seed</div></div>
+      <div class="metric-card"><div class="mc-val">6/7</div><div class="mc-lbl">Red Herrings Avoided</div></div>
+    </div>
+    <p class="slide-footer">5-fold stratified cross-validation. All metrics out-of-fold. No leakage.</p>
+  </div>
+
+  <!-- Slide 10: Roadmap -->
+  <div class="slide" data-slide="10">
+    <h1 class="slide-title">What's <span class="accent">Next</span></h1>
+    <ul class="checklist">
+      <li><span class="done">&#10003;</span><span>Phase 1: EDA + 125-feature pipeline + 0.985 AUC</span></li>
+      <li><span class="done">&#10003;</span><span>Phase 2: 208-feature pipeline + 3-model ensemble + 0.968 AUC</span></li>
+      <li><span class="done">&#10003;</span><span>Label cleaning, red herring analysis, temporal windows</span></li>
+      <li><span class="done">&#10003;</span><span>Showcase deployed at nfpc.dmj.one</span></li>
+      <li><span class="todo">&#9675;</span><span>Real-time feature computation (&lt;200ms)</span></li>
+      <li><span class="todo">&#9675;</span><span>Regulatory sandbox pilot with partner bank</span></li>
+    </ul>
+    <div class="btn-row">
+      <a href="https://dmj.one/projects/nfpc/" target="_blank" rel="noopener" class="btn btn-primary">Live Site</a>
+      <a href="https://github.com/divyamohan1993/nfpc-mule-detection" target="_blank" rel="noopener" class="btn btn-outline">GitHub</a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  var slides = document.querySelectorAll('.slide');
+  var total = slides.length;
+  var current = 0;
+  var progress = document.getElementById('progress');
+  var counter = document.getElementById('counter');
+  var deck = document.getElementById('deck');
+
+  function show(idx) {
+    if (idx < 0) idx = 0;
+    if (idx >= total) idx = total - 1;
+    if (idx === current && slides[current].classList.contains('active')) return;
+    for (var i = 0; i < total; i++) {
+      slides[i].classList.remove('active');
+    }
+    current = idx;
+    slides[current].classList.add('active');
+    progress.style.width = ((current + 1) / total * 100) + '%';
+    counter.textContent = (current + 1) + ' / ' + total;
+    history.replaceState(null, '', '#s' + (current + 1));
+  }
+
+  function next() { show(current + 1); }
+  function prev() { show(current - 1); }
+
+  // Click navigation
+  deck.addEventListener('click', function(e) {
+    if (e.target.closest('a, button, .btn')) return;
+    var x = e.clientX;
+    if (x > window.innerWidth / 2) next();
+    else prev();
+  });
+
+  // Keyboard
+  document.addEventListener('keydown', function(e) {
+    switch(e.key) {
+      case 'ArrowRight':
+      case ' ':
+        e.preventDefault();
+        next();
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        prev();
+        break;
+      case 'Home':
+        e.preventDefault();
+        show(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        show(total - 1);
+        break;
+      case 'f':
+      case 'F':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          if (document.fullscreenElement) document.exitFullscreen();
+          else document.documentElement.requestFullscreen();
+        }
+        break;
+    }
+  });
+
+  // Touch swipe
+  var touchStartX = 0;
+  var touchStartY = 0;
+  deck.addEventListener('touchstart', function(e) {
+    touchStartX = e.changedTouches[0].clientX;
+    touchStartY = e.changedTouches[0].clientY;
+  }, { passive: true });
+
+  deck.addEventListener('touchend', function(e) {
+    var dx = e.changedTouches[0].clientX - touchStartX;
+    var dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx)) return;
+    if (dx < 0) next();
+    else prev();
+  }, { passive: true });
+
+  // Init from hash
+  var hash = window.location.hash;
+  var match = hash.match(/^#s(\d+)$/);
+  if (match) {
+    var idx = parseInt(match[1], 10) - 1;
+    if (idx >= 0 && idx < total) current = idx;
+  }
+  show(current);
+})();
+</script>
+</body>
+</html>
