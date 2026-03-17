@@ -58,6 +58,7 @@ round-2/pipeline/submission*.csv
 round-2/code_submission.zip
 round-2/report_b64.txt
 round-2/submissions/
+round-2/deliverables/nfpc-phase2-code.zip
 
 # Vercel
 .vercel
