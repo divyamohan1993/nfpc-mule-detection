@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mule Account Detection | NFPC - dmj.one</title>
+<meta name="description" content="ML system detecting money mule accounts across 160K accounts and 400M+ transactions. 208 features, 3-model ensemble, 0.968 AUC-ROC. RBIH x IIT Delhi.">
+<meta property="og:title" content="Mule Account Detection | NFPC - dmj.one">
+<meta property="og:description" content="ML system detecting money mule accounts across 160K accounts and 400M+ transactions. 208 features, 3-model ensemble, 0.968 AUC-ROC. RBIH x IIT Delhi.">
+<meta property="og:url" content="https://nfpc.dmj.one">
+<meta property="og:site_name" content="dmj.one">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mule Account Detection | NFPC - dmj.one">
+<meta name="twitter:description" content="ML system detecting money mule accounts across 160K accounts and 400M+ transactions. 208 features, 3-model ensemble, 0.968 AUC-ROC. RBIH x IIT Delhi.">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="canonical" href="https://nfpc.dmj.one">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--accent:#00d4aa;--bg:#0a0a0a;--surface:#111111;--surface-overlay:#1a1a1a;
+--border:#222222;--danger:#ff4444;--warning:#ffaa00;--text:#f0f0f0;
+--muted:#a0a0a0;--dimmer:#666;
+--font:'Inter',system-ui,-apple-system,sans-serif;
+--mono:'JetBrains Mono','Fira Code',monospace;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent);color:var(--bg)}
+a{color:var(--accent);text-decoration:none;transition:opacity .2s}
+a:hover{opacity:.8}
+img{max-width:100%;display:block}
+.container{max-width:1200px;margin:0 auto;padding:0 24px}
+
+/* Nav */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,10,10,.8);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between}
+.nav-brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.1rem;color:var(--text)}
+.nav-brand svg{color:var(--accent)}
+.nav-brand span.muted{color:var(--muted);font-weight:400;font-size:.9rem;margin-left:4px}
+.nav-links{display:flex;align-items:center;gap:24px}
+.nav-links a{color:var(--muted);font-size:.875rem;font-weight:500;transition:color .2s}
+.nav-links a:hover{color:var(--text);opacity:1}
+.nav-pitch{background:var(--accent);color:var(--bg);padding:6px 16px;border-radius:6px;font-weight:600;font-size:.875rem}
+.nav-pitch:hover{opacity:.9}
+@media(max-width:768px){.nav-links{display:none}}
+
+/* Hero */
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;padding:80px 24px 60px}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:60px 60px;pointer-events:none}
+.hero-glow{position:absolute;top:30%;left:50%;transform:translate(-50%,-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(0,212,170,.08) 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:8px 20px;font-size:.8rem;color:var(--muted);margin-bottom:32px;position:relative;z-index:1}
+.pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+.hero h1{font-size:clamp(2.5rem,6vw,4.5rem);font-weight:800;line-height:1.1;margin-bottom:24px;position:relative;z-index:1}
+.hero h1 .gradient{background:linear-gradient(135deg,#00d4aa,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-subtitle{font-size:clamp(1rem,2vw,1.2rem);color:var(--muted);max-width:720px;margin:0 auto 32px;line-height:1.7;position:relative;z-index:1}
+.hero-phases{display:flex;gap:12px;justify-content:center;margin-bottom:40px;flex-wrap:wrap;position:relative;z-index:1}
+.phase-tag{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;font-size:.8rem;font-weight:500;border:1px solid var(--border);color:var(--muted);background:var(--surface)}
+.phase-tag.active{border-color:rgba(0,212,170,.3);color:var(--accent);background:rgba(0,212,170,.05)}
+.hero-ctas{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;position:relative;z-index:1}
+.btn-primary{background:var(--accent);color:var(--bg);padding:12px 28px;border-radius:10px;font-weight:600;font-size:.95rem;display:inline-flex;align-items:center;gap:8px;transition:transform .2s,box-shadow .2s}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,170,.3);opacity:1}
+.btn-outline{border:1px solid var(--border);color:var(--text);padding:12px 28px;border-radius:10px;font-weight:600;font-size:.95rem;display:inline-flex;align-items:center;gap:8px;transition:border-color .2s}
+.btn-outline:hover{border-color:var(--accent);opacity:1}
+.scroll-indicator{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--dimmer);font-size:.75rem;animation:bob 2s infinite}
+@keyframes bob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(6px)}}
+.scroll-indicator svg{width:20px;height:20px}
+
+/* Sections */
+section{padding:100px 0}
+.section-label{display:inline-flex;align-items:center;gap:8px;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:8px}
+.section-label .tag{background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.2);padding:4px 12px;border-radius:999px;font-size:.7rem;color:var(--accent)}
+.section-title{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;margin-bottom:12px}
+.section-subtitle{color:var(--muted);font-size:1.05rem;max-width:640px;margin-bottom:48px}
+
+/* Stats Grid */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:56px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 24px;transition:border-color .3s,box-shadow .3s}
+.stat-card:hover{border-color:rgba(0,212,170,.3);box-shadow:0 0 24px rgba(0,212,170,.06)}
+.stat-value{font-size:2rem;font-weight:800;color:var(--accent);margin-bottom:4px}
+.stat-label{font-size:.9rem;color:var(--text);font-weight:600;margin-bottom:2px}
+.stat-desc{font-size:.8rem;color:var(--muted)}
+
+/* Tables */
+.table-wrap{overflow-x:auto;margin-bottom:48px;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:.875rem}
+thead{background:var(--surface)}
+th{text-align:left;padding:14px 16px;font-weight:600;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+td{padding:12px 16px;border-bottom:1px solid var(--border)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr{transition:background .2s}
+tbody tr:hover{background:var(--surface-overlay)}
+tr.highlight{background:rgba(0,212,170,.06)}
+tr.highlight:hover{background:rgba(0,212,170,.1)}
+
+/* Feature cards */
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:56px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;transition:border-color .3s,box-shadow .3s}
+.card:hover{border-color:rgba(0,212,170,.3);box-shadow:0 0 24px rgba(0,212,170,.06)}
+.card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.card-icon svg{width:20px;height:20px}
+.card h4{font-size:1rem;font-weight:700;margin-bottom:4px}
+.card .card-meta{font-size:.8rem;color:var(--accent);font-family:var(--mono);margin-bottom:8px}
+.card p{font-size:.85rem;color:var(--muted);line-height:1.6}
+
+/* Subsection headers */
+.sub-header{font-size:1.3rem;font-weight:700;margin-bottom:8px;margin-top:8px}
+.sub-desc{color:var(--muted);font-size:.9rem;margin-bottom:24px}
+
+/* Lesson / callout boxes */
+.callout{border-radius:12px;padding:20px 24px;margin-bottom:48px;font-size:.9rem;line-height:1.7}
+.callout-warning{background:rgba(255,170,0,.05);border:1px solid rgba(255,170,0,.2);color:var(--warning)}
+.callout-info{background:rgba(0,212,170,.05);border:1px solid rgba(0,212,170,.2);color:var(--muted)}
+.callout strong{color:var(--text)}
+
+/* Score badges */
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:600;font-family:var(--mono)}
+.badge-accent{background:rgba(0,212,170,.12);color:var(--accent)}
+.badge-danger{background:rgba(255,68,68,.12);color:var(--danger)}
+
+/* Feature bars */
+.features-cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:48px}
+@media(max-width:640px){.features-cols{grid-template-columns:1fr}}
+.feature-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.feature-rank{width:28px;height:28px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:var(--accent);flex-shrink:0}
+.feature-info{flex:1;min-width:0}
+.feature-name{font-size:.85rem;font-weight:600}
+.feature-code{font-size:.7rem;color:var(--muted);font-family:var(--mono)}
+.feature-bar{height:4px;border-radius:2px;background:var(--border);margin-top:4px;overflow:hidden}
+.feature-bar-fill{height:100%;background:var(--accent);border-radius:2px}
+
+/* Pattern cards */
+.patterns-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.pattern-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;transition:border-color .3s,box-shadow .3s}
+.pattern-card:hover{border-color:rgba(0,212,170,.3);box-shadow:0 0 24px rgba(0,212,170,.06)}
+.pattern-number{font-size:.7rem;font-weight:700;color:var(--accent);font-family:var(--mono);margin-bottom:8px}
+.pattern-card h4{font-size:.95rem;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.pattern-card p{font-size:.82rem;color:var(--muted);line-height:1.6}
+.pattern-icon{width:32px;height:32px;border-radius:8px;background:rgba(0,212,170,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pattern-icon svg{width:16px;height:16px;color:var(--accent)}
+
+/* Image gallery */
+.gallery-grid{display:grid;grid-template-columns:1fr;gap:16px;margin:32px 0}
+@media(min-width:640px){.gallery-grid{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1024px){.gallery-grid{grid-template-columns:repeat(3,1fr)}}
+.gallery-card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s}
+.gallery-card:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,.3)}
+.gallery-card .img-wrap{aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;padding:12px;background:#fff}
+.gallery-card img{width:100%;height:100%;object-fit:contain}
+.gallery-card .img-label{background:var(--surface);padding:12px 16px;font-size:.8rem;font-weight:600;border-top:1px solid var(--border)}
+
+/* Lightbox */
+.lightbox{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s}
+.lightbox.active{display:flex;opacity:1}
+.lightbox-close{position:absolute;top:20px;right:24px;background:none;border:none;color:#fff;font-size:2rem;cursor:pointer;z-index:3;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:background .2s}
+.lightbox-close:hover{background:rgba(255,255,255,.1)}
+.lightbox-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.1);border:none;color:#fff;font-size:1.5rem;cursor:pointer;z-index:3;width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;transition:background .2s}
+.lightbox-arrow:hover{background:rgba(255,255,255,.2)}
+.lightbox-prev{left:20px}
+.lightbox-next{right:20px}
+.lightbox img{max-width:90vw;max-height:80vh;object-fit:contain;border-radius:8px}
+.lightbox-footer{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);text-align:center;color:#fff;font-size:.9rem}
+.lightbox-counter{color:var(--muted);font-size:.8rem;margin-top:4px}
+
+/* Steps */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px;margin-bottom:56px}
+.step{position:relative;padding:24px}
+.step-number{font-size:2.5rem;font-weight:900;color:rgba(0,212,170,.1);font-family:var(--mono);line-height:1;margin-bottom:12px}
+.step h4{font-size:1rem;font-weight:700;margin-bottom:8px}
+.step p{font-size:.85rem;color:var(--muted);line-height:1.7}
+
+/* Tech stack cards */
+.tech-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.tech-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px}
+.tech-card h4{font-size:.9rem;font-weight:700;margin-bottom:12px;color:var(--accent)}
+.tech-card ul{list-style:none;padding:0}
+.tech-card li{font-size:.82rem;color:var(--muted);padding:4px 0;padding-left:16px;position:relative}
+.tech-card li::before{content:'';position:absolute;left:0;top:50%;width:6px;height:6px;border-radius:50%;background:var(--border);transform:translateY(-50%)}
+
+/* Footer */
+.footer{border-top:1px solid var(--border);padding:40px 0;margin-top:40px}
+.footer-inner{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:24px}
+.footer-left h4{font-size:.95rem;font-weight:700;margin-bottom:4px}
+.footer-left p{font-size:.8rem;color:var(--muted)}
+.footer-links{display:flex;gap:20px;flex-wrap:wrap}
+.footer-links a{color:var(--muted);font-size:.8rem;font-weight:500}
+.footer-links a:hover{color:var(--text)}
+
+/* Animations */
+.fade-up{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+.fade-up.visible{opacity:1;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){
+.fade-up{opacity:1;transform:none;transition:none}
+.pulse-dot{animation:none}
+.scroll-indicator{animation:none}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}}
+@keyframes bob{0%,100%{transform:translateX(-50%) translateY(0)}}
+}
+
+/* Danger text */
+.text-danger{color:var(--danger)}
+.text-accent{color:var(--accent)}
+.text-muted{color:var(--muted)}
+.text-warning{color:var(--warning)}
+.fw-600{font-weight:600}
+.mono{font-family:var(--mono)}
+
+/* Label cleaning cards */
+.label-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:48px}
+
+/* Infrastructure cards */
+.infra-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:48px}
+.infra-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;transition:border-color .3s,box-shadow .3s}
+.infra-card:hover{border-color:rgba(0,212,170,.3);box-shadow:0 0 24px rgba(0,212,170,.06)}
+.infra-card .infra-value{font-size:1.2rem;font-weight:800;color:var(--accent);font-family:var(--mono);margin-bottom:4px}
+.infra-card .infra-label{font-size:.85rem;font-weight:600;margin-bottom:2px}
+.infra-card .infra-desc{font-size:.75rem;color:var(--muted)}
+
+/* Responsive table fix */
+@media(max-width:640px){
+th,td{padding:10px 12px;font-size:.78rem}
+.stats-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:480px){
+.stats-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+<a href="#" class="nav-brand">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+NFPC
+<span class="muted">Mule Detection</span>
+</a>
+<div class="nav-links">
+<a href="#phase2">Phase 2</a>
+<a href="#phase1">Phase 1</a>
+<a href="#patterns">Patterns</a>
+<a href="#visualizations">Visualizations</a>
+<a href="pitch.html" class="nav-pitch">Pitch</a>
+</div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+<div class="hero-grid"></div>
+<div class="hero-glow"></div>
+<div class="hero-badge">
+<span class="pulse-dot"></span>
+RBIH x IIT Delhi TRYST 2025
+</div>
+<h1>Catching <span class="gradient">Money Mules</span></h1>
+<p class="hero-subtitle">Machine learning system detecting fraudulent intermediary accounts across 160K accounts and 400M+ transactions. 208 engineered features. 3-model ensemble. Two competition phases.</p>
+<div class="hero-phases">
+<span class="phase-tag">Phase 1: EDA + Modeling</span>
+<span class="phase-tag active"><span class="pulse-dot"></span>Phase 2: Production Pipeline</span>
+</div>
+<div class="hero-ctas">
+<a href="#phase2" class="btn-primary">Phase 2 Results</a>
+<a href="https://github.com/divyamohan1993/nfpc-mule-detection" target="_blank" rel="noopener" class="btn-outline">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+GitHub
+</a>
+</div>
+<div class="scroll-indicator">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 13l5 5 5-5M7 6l5 5 5-5"/></svg>
+</div>
+</section>
+
+<!-- Phase 2 -->
+<section id="phase2">
+<div class="container">
+<div class="fade-up">
+<div class="section-label">Phase 2 <span class="tag"><span class="pulse-dot" style="width:6px;height:6px"></span> Production Pipeline</span></div>
+<h2 class="section-title">Competition Results</h2>
+<p class="section-subtitle">3-model ensemble with confident learning, heuristic noise scoring, and 208 engineered features across 160K accounts.</p>
+</div>
+
+<div class="stats-grid fade-up">
+<div class="stat-card">
+<div class="stat-value">0.968</div>
+<div class="stat-label">Public AUC-ROC</div>
+<div class="stat-desc">Leaderboard rank #37</div>
+</div>
+<div class="stat-card">
+<div class="stat-value">0.956</div>
+<div class="stat-label">Private AUC-ROC</div>
+<div class="stat-desc">Hidden test set</div>
+</div>
+<div class="stat-card">
+<div class="stat-value">208</div>
+<div class="stat-label">Engineered Features</div>
+<div class="stat-desc">4 computation passes</div>
+</div>
+<div class="stat-card">
+<div class="stat-value">160K</div>
+<div class="stat-label">Accounts Analyzed</div>
+<div class="stat-desc">~400M transactions</div>
+</div>
+</div>
+
+<!-- 3-Model Ensemble -->
+<h3 class="sub-header fade-up">3-Model Ensemble</h3>
+<p class="sub-desc fade-up">Three gradient boosting models trained independently and combined via rank averaging.</p>
+<div class="table-wrap fade-up">
+<table>
+<thead><tr><th>Model</th><th>Training</th><th>Combination Method</th></tr></thead>
+<tbody>
+<tr><td class="fw-600">LightGBM</td><td>3-seed x 5-fold CV</td><td>Rank Averaging</td></tr>
+<tr><td class="fw-600">XGBoost</td><td>3-seed x 5-fold CV</td><td>Rank Averaging</td></tr>
+<tr><td class="fw-600">CatBoost</td><td>3-seed x 5-fold CV</td><td>Rank Averaging</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- Feature Engineering -->
+<h3 class="sub-header fade-up">Feature Engineering (208 Features)</h3>
+<p class="sub-desc fade-up">Four computation passes extracting progressively complex signals from raw transaction data.</p>
+<div class="cards-grid fade-up">
+<div class="card">
+<div class="card-icon" style="background:rgba(0,212,170,.1)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+</div>
+<h4>Transaction Core</h4>
+<div class="card-meta">~100 features &middot; Pass 1</div>
+<p>Amounts, counts, channel distributions, temporal patterns, and basic velocity metrics.</p>
+</div>
+<div class="card">
+<div class="card-icon" style="background:rgba(0,212,170,.1)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+</div>
+<h4>Transaction Extended</h4>
+<div class="card-meta">~40 features &middot; Pass 2</div>
+<p>Structuring indicators, round amount ratios, credit-debit flow patterns, and burst detection.</p>
+</div>
+<div class="card">
+<div class="card-icon" style="background:rgba(0,212,170,.1)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+</div>
+<h4>Static Account</h4>
+<div class="card-meta">~35 features &middot; Pass 3</div>
+<p>KYC recency, account age, balance patterns, freeze history, and demographic features.</p>
+</div>
+<div class="card">
+<div class="card-icon" style="background:rgba(0,212,170,.1)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 7l3 3M14 7l3-3M7 17l3-3M17 17l-3-3"/></svg>
+</div>
+<h4>Graph / Network</h4>
+<div class="card-meta">~33 features &middot; Pass 4</div>
+<p>PageRank, HITS, Louvain communities, betweenness centrality, and clustering coefficients.</p>
+</div>
+</div>
+
+<!-- Experiment Log -->
+<h3 class="sub-header fade-up">Experiment Log</h3>
+<p class="sub-desc fade-up">Iterative experimentation from baseline to best submission.</p>
+<div class="table-wrap fade-up">
+<table>
+<thead><tr><th>Version</th><th>Description</th><th>Public AUC</th><th>Outcome</th></tr></thead>
+<tbody>
+<tr><td class="fw-600">V1</td><td>Baseline (LGB+XGB+CB)</td><td class="mono">0.956</td><td>Solid starting point with target encoding</td></tr>
+<tr><td class="fw-600">V2</td><td>Optuna HPO (100 trials/model)</td><td class="mono">0.956</td><td>Found optimal near-zero regularization</td></tr>
+<tr class="highlight"><td class="fw-600 text-accent">V3</td><td class="fw-600">Freq encoding + rank avg + multi-seed</td><td class="mono text-accent">0.968</td><td class="fw-600">Best. Eliminated leakage, improved stability</td></tr>
+<tr><td class="fw-600">V5</td><td>Feature interactions (26 derived)</td><td class="mono">0.963</td><td>Hurt. Trees discover interactions internally</td></tr>
+<tr><td class="fw-600">V6</td><td>Pseudo-labeling (2-stage)</td><td class="mono text-danger">0.787</td><td class="text-danger">Catastrophic. Diluted mule signal from 2.8% to 1.8%</td></tr>
+<tr><td class="fw-600">V7</td><td>Drop all branch features</td><td class="mono">0.959</td><td>Fixed RH7 but destroyed overall AUC</td></tr>
+<tr><td class="fw-600">V8</td><td>Surgical branch_code drop</td><td class="mono">0.958</td><td>Precise RH7 fix, still too much AUC loss</td></tr>
+</tbody>
+</table>
+</div>
+<div class="callout callout-warning fade-up">
+<strong>Key Lesson:</strong> With near-zero regularization and powerful tree models, the simplest feature set produces the best generalization. Feature engineering quality matters more than model complexity.
+</div>
+
+<!-- Mule Behavioral Archetypes -->
+<h3 class="sub-header fade-up">Mule Behavioral Archetypes</h3>
+<p class="sub-desc fade-up">Four dominant behavioral patterns observed in confirmed mule accounts.</p>
+<div class="cards-grid fade-up">
+<div class="card">
+<div class="card-icon" style="background:rgba(0,212,170,.1)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+</div>
+<h4>Pass-Through</h4>
+<p>High velocity credits followed by rapid debits, minimal balance retention.</p>
+</div>
+<div class="card">
+<div class="card-icon" style="background:rgba(0,212,170,.1)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+</div>
+<h4>Network Hub</h4>
+<p>High fan-in/fan-out with many unique counterparties acting as intermediary.</p>
+</div>
+<div class="card">
+<div class="card-icon" style="background:rgba(0,212,170,.1)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+</div>
+<h4>Dormant-Burst</h4>
+<p>Long inactivity followed by sudden intense transaction bursts.</p>
+</div>
+<div class="card">
+<div class="card-icon" style="background:rgba(0,212,170,.1)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+</div>
+<h4>Structuring</h4>
+<p>Deliberately fragmenting amounts below monitoring thresholds.</p>
+</div>
+</div>
+
+<!-- Red Herring Analysis -->
+<h3 class="sub-header fade-up">Red Herring Analysis</h3>
+<p class="sub-desc fade-up">Systematic identification and handling of 7 categories of label noise in the training data.</p>
+<div class="table-wrap fade-up">
+<table>
+<thead><tr><th>ID</th><th>Category</th><th>Strategy</th><th>Score</th></tr></thead>
+<tbody>
+<tr><td class="fw-600">RH#1</td><td>Routine investigation false positives</td><td>Heuristic noise weight 0.6</td><td><span class="badge badge-accent">0.995</span></td></tr>
+<tr><td class="fw-600">RH#2</td><td>Missing alert_reason</td><td>Heuristic noise weight 0.8</td><td><span class="badge badge-accent">0.990</span></td></tr>
+<tr><td class="fw-600">RH#3</td><td>Future mule_flag_date</td><td>Dates after Jun 2025 downweighted</td><td><span class="badge badge-accent">0.993</span></td></tr>
+<tr><td class="fw-600">RH#4</td><td>Very old flag dates</td><td>Dates before Jul 2020 downweighted</td><td><span class="badge badge-accent">0.978</span></td></tr>
+<tr><td class="fw-600">RH#5</td><td>Boundary date artifacts</td><td>Exact boundary dates flagged</td><td><span class="badge badge-accent">0.993</span></td></tr>
+<tr><td class="fw-600">RH#6</td><td>Frozen accounts as mules</td><td>Null flagged_by_branch detected</td><td><span class="badge badge-accent">0.999</span></td></tr>
+<tr><td class="fw-600 text-danger">RH#7</td><td class="text-danger">Flagged by own branch</td><td>Branch features carry signal + noise</td><td><span class="badge badge-danger">0.000</span></td></tr>
+</tbody>
+</table>
+</div>
+<div class="callout callout-info fade-up">
+<strong>RH7 Analysis:</strong> Branch features carry genuine discriminative signal. Removing all branch features achieves RH7=1.000 but drops AUC from 0.968 to 0.959. The surgical V8 approach (drop only branch_code encodings) balances the tradeoff.
+</div>
+
+<!-- Label Cleaning Strategy -->
+<h3 class="sub-header fade-up">Label Cleaning Strategy</h3>
+<p class="sub-desc fade-up">Three-pronged approach to handling noisy training labels.</p>
+<div class="label-cards fade-up">
+<div class="card">
+<h4>Confident Learning</h4>
+<p>2 rounds of out-of-fold LightGBM probability estimation with per-class thresholds (Northcutt et al. 2021). Identifies label noise.</p>
+</div>
+<div class="card">
+<h4>Heuristic Noise Scoring</h4>
+<p>Rule-based detection targeting 7 red herring categories. Assigns noise scores based on metadata signals.</p>
+</div>
+<div class="card">
+<h4>Combined Weights</h4>
+<p>max(CL score, heuristic score) mapped to sample weights in [0.2, 1.0]. Downweights noisy labels without discarding data.</p>
+</div>
+</div>
+
+<!-- Infrastructure -->
+<h3 class="sub-header fade-up">Infrastructure</h3>
+<p class="sub-desc fade-up">Compute resources used for the Phase 2 production pipeline.</p>
+<div class="infra-grid fade-up">
+<div class="infra-card">
+<div class="infra-value">n2-highmem-8</div>
+<div class="infra-label">Compute</div>
+<div class="infra-desc">8 vCPU, 64GB RAM</div>
+</div>
+<div class="infra-card">
+<div class="infra-value">~12 min</div>
+<div class="infra-label">Training Time</div>
+<div class="infra-desc">3-seed x 5-fold CV</div>
+</div>
+<div class="infra-card">
+<div class="infra-value">~10 min</div>
+<div class="infra-label">Feature Engineering</div>
+<div class="infra-desc">208 features, 160K accounts</div>
+</div>
+<div class="infra-card">
+<div class="infra-value">16 GB</div>
+<div class="infra-label">Dataset Size</div>
+<div class="infra-desc">~400M transactions</div>
+</div>
+</div>
+
+</div>
+</section>
+
+<!-- Phase 1 -->
+<section id="phase1">
+<div class="container">
+<div class="fade-up">
+<div class="section-label">Phase 1 <span class="tag">EDA + Initial Modeling</span></div>
+<h2 class="section-title">Exploration &amp; Discovery</h2>
+<p class="section-subtitle">Deep exploratory analysis of 24K accounts and 7.4M transactions, uncovering behavioral patterns that distinguish mule accounts.</p>
+</div>
+
+<div class="stats-grid fade-up">
+<div class="stat-card">
+<div class="stat-value">0.985</div>
+<div class="stat-label">OOF AUC-ROC</div>
+<div class="stat-desc">LightGBM + XGBoost ensemble</div>
+</div>
+<div class="stat-card">
+<div class="stat-value">125</div>
+<div class="stat-label">Engineered Features</div>
+<div class="stat-desc">13 categories</div>
+</div>
+<div class="stat-card">
+<div class="stat-value">12/12</div>
+<div class="stat-label">Mule Patterns Found</div>
+<div class="stat-desc">All validated statistically</div>
+</div>
+<div class="stat-card">
+<div class="stat-value">1:90</div>
+<div class="stat-label">Class Imbalance</div>
+<div class="stat-desc">263 mules / 23,760 legitimate</div>
+</div>
+</div>
+
+<!-- Model Comparison -->
+<h3 class="sub-header fade-up">Model Comparison</h3>
+<p class="sub-desc fade-up">Phase 1 model performance on 5-fold cross-validation.</p>
+<div class="table-wrap fade-up">
+<table>
+<thead><tr><th>Model</th><th>Mean AUC</th><th>Median AUC</th><th>Std Dev</th></tr></thead>
+<tbody>
+<tr><td class="fw-600">LightGBM</td><td class="mono">0.9834</td><td class="mono">0.9831</td><td class="mono">&plusmn;0.0058</td></tr>
+<tr><td class="fw-600">XGBoost</td><td class="mono">0.9789</td><td class="mono">0.9785</td><td class="mono">&plusmn;0.0067</td></tr>
+<tr><td class="fw-600">Ensemble</td><td class="mono text-accent">0.9851</td><td class="mono">-</td><td class="mono">-</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- Red Flags -->
+<h3 class="sub-header fade-up">Red Flags: Mule vs Legitimate</h3>
+<p class="sub-desc fade-up">Key behavioral differences between confirmed mule accounts and legitimate accounts.</p>
+<div class="table-wrap fade-up">
+<table>
+<thead><tr><th>Indicator</th><th>Legitimate</th><th style="color:#ff4444">Mule</th><th>Multiplier</th></tr></thead>
+<tbody>
+<tr><td class="fw-600">Accounts Frozen</td><td>3.0%</td><td style="color:#ff4444">58.9%</td><td><span class="badge badge-accent">19.6x</span></td></tr>
+<tr><td class="fw-600">MCC 6051 (Wire Transfer)</td><td>0.12%</td><td style="color:#ff4444">2.10%</td><td><span class="badge badge-accent">18x</span></td></tr>
+<tr><td class="fw-600">Post-Mobile Txn Value</td><td>127K</td><td style="color:#ff4444">903K</td><td><span class="badge badge-accent">7.1x</span></td></tr>
+<tr><td class="fw-600">Txn-to-Balance Ratio</td><td>68.5</td><td style="color:#ff4444">473.9</td><td><span class="badge badge-accent">6.9x</span></td></tr>
+<tr><td class="fw-600">Near-50K Structuring</td><td>1.1%</td><td style="color:#ff4444">5.9%</td><td><span class="badge badge-accent">5.3x</span></td></tr>
+<tr><td class="fw-600">Median Txn Velocity</td><td>336.8h</td><td style="color:#ff4444">78.3h</td><td><span class="badge badge-accent">4.3x faster</span></td></tr>
+<tr><td class="fw-600">Unique Counterparties</td><td>13.7</td><td style="color:#ff4444">37.1</td><td><span class="badge badge-accent">2.7x</span></td></tr>
+<tr><td class="fw-600">Pass-Through Ratio</td><td>1.184</td><td style="color:#ff4444">1.015</td><td><span class="badge badge-accent">~1:1</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- Top 10 Features -->
+<h3 class="sub-header fade-up">Top 10 Features (Phase 1 SHAP)</h3>
+<p class="sub-desc fade-up">Most important features ranked by mean absolute SHAP values.</p>
+<div class="features-cols fade-up">
+<div>
+<div class="feature-item">
+<div class="feature-rank">1</div>
+<div class="feature-info">
+<div class="feature-name">Wire Transfer Rate</div>
+<div class="feature-code">mcc_6051_rate</div>
+<div class="feature-bar"><div class="feature-bar-fill" style="width:100%"></div></div>
+</div>
+</div>
+<div class="feature-item">
+<div class="feature-rank">2</div>
+<div class="feature-info">
+<div class="feature-name">Account Freeze History</div>
+<div class="feature-code">was_frozen</div>
+<div class="feature-bar"><div class="feature-bar-fill" style="width:38.2%"></div></div>
+</div>
+</div>
+<div class="feature-item">
+<div class="feature-rank">3</div>
+<div class="feature-info">
+<div class="feature-name">UPI Debit Rate</div>
+<div class="feature-code">ch_UPD_rate</div>
+<div class="feature-bar"><div class="feature-bar-fill" style="width:12.3%"></div></div>
+</div>
+</div>
+<div class="feature-item">
+<div class="feature-rank">4</div>
+<div class="feature-info">
+<div class="feature-name">Counterparties/Txn</div>
+<div class="feature-code">cp_per_txn</div>
+<div class="feature-bar"><div class="feature-bar-fill" style="width:11.1%"></div></div>
+</div>
+</div>
+<div class="feature-item">
+<div class="feature-rank">5</div>
+<div class="feature-info">
+<div class="feature-name">KYC Recency</div>
+<div class="feature-code">days_since_kyc</div>
+<div class="feature-bar"><div class="feature-bar-fill" style="width:11.0%"></div></div>
+</div>
+</div>
+</div>
+<div>
+<div class="feature-item">
+<div class="feature-rank">6</div>
+<div class="feature-info">
+<div class="feature-name">Pawn Shop Rate</div>
+<div class="feature-code">mcc_5933_rate</div>
+<div class="feature-bar"><div class="feature-bar-fill" style="width:10.4%"></div></div>
+</div>
+</div>
+<div class="feature-item">
+<div class="feature-rank">7</div>
+<div class="feature-info">
+<div class="feature-name">P25 Amount</div>
+<div class="feature-code">p25_amount</div>
+<div class="feature-bar"><div class="feature-bar-fill" style="width:9.0%"></div></div>
+</div>
+</div>
+<div class="feature-item">
+<div class="feature-rank">8</div>
+<div class="feature-info">
+<div class="feature-name">Cheque Rate</div>
+<div class="feature-code">ch_CHQ_rate</div>
+<div class="feature-bar"><div class="feature-bar-fill" style="width:7.4%"></div></div>
+</div>
+</div>
+<div class="feature-item">
+<div class="feature-rank">9</div>
+<div class="feature-info">
+<div class="feature-name">Relationship Tenure</div>
+<div class="feature-code">rel_years</div>
+<div class="feature-bar"><div class="feature-bar-fill" style="width:5.7%"></div></div>
+</div>
+</div>
+<div class="feature-item">
+<div class="feature-rank">10</div>
+<div class="feature-info">
+<div class="feature-name">ATM Withdrawal Rate</div>
+<div class="feature-code">ch_ATW_rate</div>
+<div class="feature-bar"><div class="feature-bar-fill" style="width:4.9%"></div></div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</section>
+
+<!-- Patterns -->
+<section id="patterns">
+<div class="container">
+<div class="fade-up">
+<h2 class="section-title">12 Mule Patterns</h2>
+<p class="section-subtitle">All 12 known mule behavioral patterns identified and validated through statistical analysis and domain expertise.</p>
+</div>
+
+<div class="patterns-grid fade-up">
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 01</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+Dormant Activation
+</h4>
+<p>Inactive accounts suddenly process high-value bursts.</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 02</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></span>
+Structuring
+</h4>
+<p>Transactions just below the 50K INR reporting threshold.</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 03</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+Rapid Pass-Through
+</h4>
+<p>Near 1:1 credit-to-debit ratio, money flows through untouched.</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 04</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>
+Fan-In / Fan-Out
+</h4>
+<p>Many-to-one or one-to-many fund flows reveal network topology.</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 05</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+Geographic Anomaly
+</h4>
+<p>PIN code mismatches across customer, branch, and address.</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 06</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
+New Account High Value
+</h4>
+<p>Young accounts with disproportionate transaction volume.</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 07</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span>
+Income Mismatch
+</h4>
+<p>Transaction values vastly exceed account balance patterns.</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 08</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></span>
+Post-Mobile-Change Spike
+</h4>
+<p>Activity surges 7x after mobile number update.</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 09</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
+Round Amount Patterns
+</h4>
+<p>Overuse of exact round amounts (1K, 5K, 10K, 50K).</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 10</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg></span>
+Layered / Subtle
+</h4>
+<p>Weak multi-signal combinations that evade single-rule detection.</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 11</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+Salary Cycle Exploitation
+</h4>
+<p>Laundering timed to coincide with salary credit windows.</p>
+</div>
+<div class="pattern-card">
+<div class="pattern-number">PATTERN 12</div>
+<h4>
+<span class="pattern-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></span>
+Branch-Level Collusion
+</h4>
+<p>Suspicious account clusters originating from the same branch.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- Visualizations -->
+<section id="visualizations">
+<div class="container">
+<div class="fade-up">
+<h2 class="section-title">25 Visualizations</h2>
+<p class="section-subtitle">47 statistical tables, 25 analytical plots, and a full written report covering every aspect of mule account behavior.</p>
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:32px">
+<a href="report/index.html" class="btn-primary">Read Full EDA Report</a>
+<a href="https://github.com/divyamohan1993/nfpc-mule-detection" target="_blank" rel="noopener" class="btn-outline">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+View on GitHub
+</a>
+</div>
+</div>
+
+<div class="gallery-grid fade-up">
+<div class="gallery-card" onclick="openLightbox(0)">
+<div class="img-wrap"><img src="plots/18_model_evaluation.png" alt="ROC & PR Curves" loading="lazy"></div>
+<div class="img-label">ROC &amp; PR Curves</div>
+</div>
+<div class="gallery-card" onclick="openLightbox(1)">
+<div class="img-wrap"><img src="plots/19_shap_summary.png" alt="SHAP Summary" loading="lazy"></div>
+<div class="img-label">SHAP Summary</div>
+</div>
+<div class="gallery-card" onclick="openLightbox(2)">
+<div class="img-wrap"><img src="plots/11_structuring.png" alt="Structuring Detection" loading="lazy"></div>
+<div class="img-label">Structuring Detection</div>
+</div>
+<div class="gallery-card" onclick="openLightbox(3)">
+<div class="img-wrap"><img src="plots/23_network_topology.png" alt="Network Topology" loading="lazy"></div>
+<div class="img-label">Network Topology</div>
+</div>
+<div class="gallery-card" onclick="openLightbox(4)">
+<div class="img-wrap"><img src="plots/15_velocity.png" alt="Transaction Velocity" loading="lazy"></div>
+<div class="img-label">Transaction Velocity</div>
+</div>
+<div class="gallery-card" onclick="openLightbox(5)">
+<div class="img-wrap"><img src="plots/25_cost_sensitive_matrix.png" alt="Cost-Sensitive Matrix" loading="lazy"></div>
+<div class="img-label">Cost-Sensitive Matrix</div>
+</div>
+</div>
+<p class="text-muted fade-up" style="font-size:.85rem;margin-top:16px">Showing 6 of 25 visualizations. Full report includes class distribution, channel analysis, temporal patterns, geographic analysis, and more.</p>
+</div>
+</section>
+
+<!-- How It Works -->
+<section id="methodology">
+<div class="container">
+<div class="fade-up">
+<h2 class="section-title">How It Works</h2>
+<p class="section-subtitle">End-to-end pipeline from raw transactions to mule probability scores.</p>
+</div>
+
+<div class="steps fade-up">
+<div class="step">
+<div class="step-number">01</div>
+<h4>Data Ingestion</h4>
+<p>160K accounts, 400M+ transactions spanning July 2020 - June 2025. Memory-efficient batch processing over 16 GB Parquet dataset.</p>
+</div>
+<div class="step">
+<div class="step-number">02</div>
+<h4>Feature Engineering</h4>
+<p>208 features in 4 passes: transaction core, extended patterns, static account metadata, and graph/network metrics (PageRank, Louvain, betweenness).</p>
+</div>
+<div class="step">
+<div class="step-number">03</div>
+<h4>Label Cleaning</h4>
+<p>2-round confident learning + heuristic noise scoring for 7 red herring categories. Sample weights in [0.2, 1.0].</p>
+</div>
+<div class="step">
+<div class="step-number">04</div>
+<h4>Model Training</h4>
+<p>LightGBM + XGBoost + CatBoost ensemble with 3-seed x 5-fold CV, rank averaging, Optuna HPO. Frequency encoding to prevent leakage.</p>
+</div>
+</div>
+
+<div class="tech-grid fade-up">
+<div class="tech-card">
+<h4>Statistical Methods</h4>
+<ul>
+<li>Confident Learning</li>
+<li>Kolmogorov-Smirnov</li>
+<li>SHAP TreeExplainer</li>
+<li>Bonferroni correction</li>
+</ul>
+</div>
+<div class="tech-card">
+<h4>ML Models</h4>
+<ul>
+<li>LightGBM (GBDT)</li>
+<li>XGBoost</li>
+<li>CatBoost</li>
+<li>Rank Averaging Ensemble</li>
+</ul>
+</div>
+<div class="tech-card">
+<h4>Graph / Network</h4>
+<ul>
+<li>PageRank &amp; HITS</li>
+<li>Louvain Communities</li>
+<li>Betweenness Centrality</li>
+<li>Clustering Coefficients</li>
+</ul>
+</div>
+<div class="tech-card">
+<h4>Tech Stack</h4>
+<ul>
+<li>Python 3.10+</li>
+<li>Pandas / NumPy / NetworkX</li>
+<li>Optuna HPO</li>
+<li>GCP n2-highmem-8</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+<div class="container">
+<div class="footer-inner">
+<div class="footer-left">
+<h4>NFPC Mule Account Detection</h4>
+<p>Divya Mohan &amp; Kumkum Thakur &middot; Team dmj.one &middot; RBIH x IIT Delhi TRYST 2025</p>
+</div>
+<div class="footer-links">
+<a href="https://github.com/divyamohan1993/nfpc-mule-detection" target="_blank" rel="noopener">GitHub</a>
+<a href="pitch.html">Pitch</a>
+<a href="https://dmj.one" target="_blank" rel="noopener">dmj.one</a>
+<a href="#">MIT License</a>
+</div>
+</div>
+</div>
+</footer>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+<button class="lightbox-close" onclick="closeLightbox()" aria-label="Close">&times;</button>
+<button class="lightbox-arrow lightbox-prev" onclick="prevSlide()" aria-label="Previous">&#8249;</button>
+<button class="lightbox-arrow lightbox-next" onclick="nextSlide()" aria-label="Next">&#8250;</button>
+<img id="lightbox-img" src="" alt="">
+<div class="lightbox-footer">
+<div id="lightbox-label"></div>
+<div class="lightbox-counter" id="lightbox-counter"></div>
+</div>
+</div>
+
+<script>
+// Lightbox
+const galleryItems = [
+{ src: 'plots/18_model_evaluation.png', label: 'ROC & PR Curves' },
+{ src: 'plots/19_shap_summary.png', label: 'SHAP Summary' },
+{ src: 'plots/11_structuring.png', label: 'Structuring Detection' },
+{ src: 'plots/23_network_topology.png', label: 'Network Topology' },
+{ src: 'plots/15_velocity.png', label: 'Transaction Velocity' },
+{ src: 'plots/25_cost_sensitive_matrix.png', label: 'Cost-Sensitive Matrix' }
+];
+let currentSlide = 0;
+const lightbox = document.getElementById('lightbox');
+const lbImg = document.getElementById('lightbox-img');
+const lbLabel = document.getElementById('lightbox-label');
+const lbCounter = document.getElementById('lightbox-counter');
+
+function openLightbox(index) {
+currentSlide = index;
+updateLightbox();
+lightbox.classList.add('active');
+document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+lightbox.classList.remove('active');
+document.body.style.overflow = '';
+}
+
+function updateLightbox() {
+const item = galleryItems[currentSlide];
+lbImg.src = item.src;
+lbImg.alt = item.label;
+lbLabel.textContent = item.label;
+lbCounter.textContent = (currentSlide + 1) + ' / ' + galleryItems.length;
+}
+
+function nextSlide() {
+currentSlide = (currentSlide + 1) % galleryItems.length;
+updateLightbox();
+}
+
+function prevSlide() {
+currentSlide = (currentSlide - 1 + galleryItems.length) % galleryItems.length;
+updateLightbox();
+}
+
+// Keyboard nav
+document.addEventListener('keydown', function(e) {
+if (!lightbox.classList.contains('active')) return;
+if (e.key === 'Escape') closeLightbox();
+if (e.key === 'ArrowRight') nextSlide();
+if (e.key === 'ArrowLeft') prevSlide();
+});
+
+// Click backdrop to close
+lightbox.addEventListener('click', function(e) {
+if (e.target === lightbox) closeLightbox();
+});
+
+// Touch swipe
+let touchStartX = 0;
+let touchEndX = 0;
+lightbox.addEventListener('touchstart', function(e) {
+touchStartX = e.changedTouches[0].screenX;
+}, { passive: true });
+lightbox.addEventListener('touchend', function(e) {
+touchEndX = e.changedTouches[0].screenX;
+const diff = touchStartX - touchEndX;
+if (Math.abs(diff) > 50) {
+if (diff > 0) nextSlide();
+else prevSlide();
+}
+}, { passive: true });
+
+// Scroll animations (IntersectionObserver)
+(function() {
+var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (prefersReducedMotion) {
+document.querySelectorAll('.fade-up').forEach(function(el) {
+el.classList.add('visible');
+});
+return;
+}
+var observer = new IntersectionObserver(function(entries) {
+entries.forEach(function(entry) {
+if (entry.isIntersecting) {
+entry.target.classList.add('visible');
+observer.unobserve(entry.target);
+}
+});
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.fade-up').forEach(function(el) {
+observer.observe(el);
+});
+})();
+</script>
+</body>
+</html>
